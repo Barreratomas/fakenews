@@ -1,0 +1,263 @@
+PROYECTO IA – DETECCIÓN DE FAKE NEWS (VERSIÓN CON LINKS)
+🟦 PASO 0 – DEFINÍ EL ALCANCE (ACTUALIZADO)
+
+Antes de codear, dejá esto por escrito en el README:
+
+✔ Idioma inicial: español
+✔ Entrada:
+
+✅ Texto de noticia
+
+✅ URL de noticia
+
+✔ Salida:
+
+Fake / Real
+
+Probabilidad
+
+Explicación básica
+
+(opcional) Texto extraído desde el link
+
+📌 Aclaración clave en README:
+
+“Cuando se ingresa una URL, el sistema extrae automáticamente el contenido del artículo antes de analizarlo.”
+
+👉 Esto ya lo pone un nivel arriba.
+
+🟦 PASO 1 – SETUP DEL ENTORNO (ACTUALIZADO)
+✔ Stack base
+
+Sumamos scraping:
+
+Python 3.10+
+PyTorch
+transformers
+datasets
+pandas
+scikit-learn
+fastapi
+uvicorn
+gradio
+faiss-cpu
+newspaper3k
+beautifulsoup4
+lxml
+
+
+👉 newspaper3k es clave para URLs.
+
+🟦 PASO 2 – DATASETS (SIN CAMBIOS, PERO ACLARADO)
+
+Vas a entrenar solo con texto, no con links.
+
+Dataset que vas a usar (perfecto para este proyecto):
+
+✔ train.csv
+✔ test.csv
+✔ onlytrue1000.csv
+✔ onlyfakes1000.csv
+
+📌 En README:
+
+“El modelo se entrena con texto plano; los links se procesan en inferencia.”
+
+Esto es correcto y profesional.
+
+🟦 PASO 3 – PREPROCESAMIENTO NLP (IGUAL)
+
+✔ Limpieza mínima
+✔ Split train / val / test
+✔ Tokenización con Hugging Face
+
+🚫 Nada de TF-IDF
+✅ Full Transformers
+
+🟦 PASO 4 – MODELO BASE (IGUAL)
+
+✔ roberta-base o distilbert-base-uncased
+✔ Clasificación binaria
+✔ Guardar métricas baseline
+
+👉 Todo esto queda idéntico.
+
+🟦 PASO 5 – MEJORAS PROFESIONALES (IGUAL)
+
+✔ Class weights
+✔ Scheduler
+✔ Early stopping
+
+🟦 PASO 6 – EXPLICABILIDAD (IGUAL)
+
+✔ SHAP / LIME
+✔ Atención
+✔ Frases clave
+
+📌 Importante:
+La explicación se hace sobre el texto extraído, no sobre el HTML.
+
+🟦 PASO 7 – MODELO AVANZADO (IGUAL)
+
+✔ DeBERTa v3
+✔ LoRA (PEFT)
+
+🆕 🟦 PASO 8 – EXTRACCIÓN DE NOTICIAS DESDE LINKS (NUEVO)
+
+🔥 Este es el paso que te diferencia.
+
+✔ Qué aprender
+
+Web scraping básico
+
+Parsing de artículos periodísticos
+
+Manejo de errores
+
+✔ Qué implementar
+from newspaper import Article
+
+def extract_article_from_url(url):
+    article = Article(url, language="en")
+    article.download()
+    article.parse()
+
+    if len(article.text) < 500:
+        raise ValueError("Artículo demasiado corto")
+
+    return {
+        "title": article.title,
+        "text": article.text
+    }
+
+✔ Casos a manejar
+
+Link inválido
+
+Artículo corto
+
+Paywall
+
+Error de descarga
+
+📌 Esto no es NLP, pero es ingeniería real.
+
+🟦 PASO 9 – PIPELINE UNIFICADO (NUEVO)
+
+Unificás todo así:
+
+INPUT
+ ├─ Texto → Modelo
+ └─ URL → Extractor → Texto → Modelo
+
+
+En código:
+
+def predict(input_data):
+    if input_data.type == "url":
+        text = extract_article_from_url(input_data.value)["text"]
+    else:
+        text = input_data.value
+
+    return model_predict(text)
+
+
+👉 Arquitectura limpia, modular.
+
+🟦 PASO 10 – SISTEMA LLM + RAG (VANGUARDIA)
+
+Ahora con URLs esto brilla más.
+
+✔ Convertís noticias reales a embeddings
+✔ FAISS / Chroma
+✔ Recuperás noticias similares
+✔ LLM compara narrativas
+
+Ejemplo:
+
+“Esta noticia afirma X, pero 5 fuentes confiables dicen Y.”
+
+🔥 Esto ya es fact-checking asistido.
+
+🟦 PASO 11 – API BACKEND (ACTUALIZADO)
+Endpoint único
+POST /predict
+
+Input
+{
+  "type": "url",
+  "content": "https://news.site/article"
+}
+
+
+o
+
+{
+  "type": "text",
+  "content": "full article text..."
+}
+
+Output
+{
+  "label": "FAKE",
+  "confidence": 0.92,
+  "explanation": "...",
+  "extracted_title": "..."
+}
+
+
+👉 Esto es API de producto.
+
+🟦 PASO 12 – INTERFAZ (ACTUALIZADA)
+
+✔ Selector:
+
+Texto
+
+URL
+
+✔ Preview:
+
+Texto extraído
+
+Resultado
+
+✔ Botón:
+
+“Analizar noticia”
+
+🟦 PASO 13 – DOCKER + DEPLOY (IGUAL)
+
+✔ Dockerfile
+✔ README
+✔ Deploy
+
+🟦 PASO 14 – DOCUMENTACIÓN (ACTUALIZADA)
+
+Agregá sección:
+
+Limitaciones del sistema
+
+No funciona bien con paywalls
+
+No garantiza veracidad absoluta
+
+Depende de estructura del sitio
+
+📌 Esto suma puntos, no resta.
+
+🏁 RESULTADO FINAL (VERSIÓN CON LINKS)
+
+✔ Fake news detection realista
+✔ Entrada por texto o URL
+✔ NLP moderno
+✔ Transformers
+✔ Explainability
+✔ Scraping responsable
+✔ API
+✔ Deploy
+✔ Portfolio top-tier
+
+Un recruiter va a pensar:
+
+“Este proyecto podría ponerse en producción con poco esfuerzo.”
