@@ -42,7 +42,7 @@ def main():
 
     training_args = TrainingArguments(
         output_dir=OUTPUT_DIR,
-        evaluation_strategy="epoch",
+        eval_strategy="epoch",
         save_strategy="epoch",
         logging_strategy="steps",
         logging_steps=100,
