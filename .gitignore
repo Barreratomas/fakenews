@@ -2,3 +2,7 @@ venv/
 .venv/
 */venv/
 */.venv/
+models/
+src/preprocessing/processed/
+*.safetensors
+*.arrow

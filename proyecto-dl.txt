@@ -1,14 +1,14 @@
 PROYECTO IA – DETECCIÓN DE FAKE NEWS (VERSIÓN CON LINKS)
-🟦 PASO 0 – DEFINÍ EL ALCANCE (ACTUALIZADO)
+PASO 0 – DEFINÍ EL ALCANCE 
 
 Antes de codear, dejá esto por escrito en el README:
 
 ✔ Idioma inicial: español
 ✔ Entrada:
 
-✅ Texto de noticia
+Texto de noticia
 
-✅ URL de noticia
+URL de noticia
 
 ✔ Salida:
 
@@ -20,13 +20,13 @@ Explicación básica
 
 (opcional) Texto extraído desde el link
 
-📌 Aclaración clave en README:
+Aclaración clave en README:
 
 “Cuando se ingresa una URL, el sistema extrae automáticamente el contenido del artículo antes de analizarlo.”
 
-👉 Esto ya lo pone un nivel arriba.
+Esto ya lo pone un nivel arriba.
 
-🟦 PASO 1 – SETUP DEL ENTORNO (ACTUALIZADO)
+ PASO 1 – SETUP DEL ENTORNO
 ✔ Stack base
 
 Sumamos scraping:
@@ -46,9 +46,9 @@ beautifulsoup4
 lxml
 
 
-👉 newspaper3k es clave para URLs.
+ newspaper3k es clave para URLs.
 
-🟦 PASO 2 – DATASETS (SIN CAMBIOS, PERO ACLARADO)
+PASO 2 – DATASETS (SIN CAMBIOS, PERO ACLARADO)
 
 Vas a entrenar solo con texto, no con links.
 
@@ -59,52 +59,51 @@ Dataset que vas a usar (perfecto para este proyecto):
 ✔ onlytrue1000.csv
 ✔ onlyfakes1000.csv
 
-📌 En README:
+ En README:
 
 “El modelo se entrena con texto plano; los links se procesan en inferencia.”
 
 Esto es correcto y profesional.
 
-🟦 PASO 3 – PREPROCESAMIENTO NLP (IGUAL)
+PASO 3 – PREPROCESAMIENTO NLP 
 
 ✔ Limpieza mínima
 ✔ Split train / val / test
 ✔ Tokenización con Hugging Face
 
-🚫 Nada de TF-IDF
-✅ Full Transformers
+Nada de TF-IDF
+Full Transformers
 
-🟦 PASO 4 – MODELO BASE (IGUAL)
+PASO 4 – MODELO BASE 
 
 ✔ roberta-base o distilbert-base-uncased
 ✔ Clasificación binaria
 ✔ Guardar métricas baseline
 
-👉 Todo esto queda idéntico.
 
-🟦 PASO 5 – MEJORAS PROFESIONALES (IGUAL)
+PASO 5 – MEJORAS PROFESIONALES 
 
 ✔ Class weights
 ✔ Scheduler
 ✔ Early stopping
 
-🟦 PASO 6 – EXPLICABILIDAD (IGUAL)
+PASO 6 – EXPLICABILIDAD 
 
 ✔ SHAP / LIME
 ✔ Atención
 ✔ Frases clave
 
-📌 Importante:
+Importante:
 La explicación se hace sobre el texto extraído, no sobre el HTML.
 
-🟦 PASO 7 – MODELO AVANZADO (IGUAL)
+PASO 7 – MODELO AVANZADO 
 
 ✔ DeBERTa v3
 ✔ LoRA (PEFT)
 
-🆕 🟦 PASO 8 – EXTRACCIÓN DE NOTICIAS DESDE LINKS (NUEVO)
+ PASO 8 – EXTRACCIÓN DE NOTICIAS DESDE LINKS 
 
-🔥 Este es el paso que te diferencia.
+Este es el paso que te diferencia.
 
 ✔ Qué aprender
 
@@ -140,9 +139,9 @@ Paywall
 
 Error de descarga
 
-📌 Esto no es NLP, pero es ingeniería real.
+Esto no es NLP, pero es ingeniería real.
 
-🟦 PASO 9 – PIPELINE UNIFICADO (NUEVO)
+PASO 9 – PIPELINE UNIFICADO
 
 Unificás todo así:
 
@@ -162,9 +161,9 @@ def predict(input_data):
     return model_predict(text)
 
 
-👉 Arquitectura limpia, modular.
+Arquitectura limpia, modular.
 
-🟦 PASO 10 – SISTEMA LLM + RAG (VANGUARDIA)
+PASO 10 – SISTEMA LLM + RAG 
 
 Ahora con URLs esto brilla más.
 
@@ -177,9 +176,9 @@ Ejemplo:
 
 “Esta noticia afirma X, pero 5 fuentes confiables dicen Y.”
 
-🔥 Esto ya es fact-checking asistido.
+ Esto ya es fact-checking asistido.
 
-🟦 PASO 11 – API BACKEND (ACTUALIZADO)
+ PASO 11 – API BACKEND (ACTUALIZADO)
 Endpoint único
 POST /predict
 
@@ -206,9 +205,9 @@ Output
 }
 
 
-👉 Esto es API de producto.
+ Esto es API de producto.
 
-🟦 PASO 12 – INTERFAZ (ACTUALIZADA)
+PASO 12 – INTERFAZ 
 
 ✔ Selector:
 
@@ -226,13 +225,13 @@ Resultado
 
 “Analizar noticia”
 
-🟦 PASO 13 – DOCKER + DEPLOY (IGUAL)
+PASO 13 – DOCKER + DEPLOY 
 
 ✔ Dockerfile
 ✔ README
 ✔ Deploy
 
-🟦 PASO 14 – DOCUMENTACIÓN (ACTUALIZADA)
+PASO 14 – DOCUMENTACIÓN 
 
 Agregá sección:
 
@@ -243,10 +242,9 @@ No funciona bien con paywalls
 No garantiza veracidad absoluta
 
 Depende de estructura del sitio
+ Esto suma puntos, no resta.
 
-📌 Esto suma puntos, no resta.
-
-🏁 RESULTADO FINAL (VERSIÓN CON LINKS)
+ RESULTADO FINAL 
 
 ✔ Fake news detection realista
 ✔ Entrada por texto o URL
