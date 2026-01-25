@@ -45,9 +45,9 @@ class WeightedTrainer(Trainer):
         self.num_labels = num_labels
 
     def compute_loss(self, model, inputs, return_outputs=False):
-        labels = inputs.pop("labels")
-        outputs = model(**inputs)
-        logits = outputs.logits
+        labels = inputs.get("labels")
+        outputs = model(**{k: v for k, v in inputs.items() if k != "labels"})
+        logits = outputs.get("logits")
 
         loss_fct = torch.nn.CrossEntropyLoss(
             weight=self.class_weights.to(logits.device)
@@ -57,7 +57,6 @@ class WeightedTrainer(Trainer):
 
 
 
-def main():
     print("🔹 Cargando datasets procesados")
     train_ds = load_from_disk(os.path.join(DATA_DIR, "train"))
     val_ds = load_from_disk(os.path.join(DATA_DIR, "val"))
@@ -71,26 +70,48 @@ def main():
     print("🔹 Cargando modelo:", MODEL_NAME)
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)
 
-    training_args = TrainingArguments(
-        output_dir=OUTPUT_DIR,
-        evaluation_strategy="epoch",
-        save_strategy="epoch",
-        logging_strategy="steps",
-        logging_steps=100,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
-        num_train_epochs=3,
-        learning_rate=2e-5,
-        weight_decay=0.01,
-        lr_scheduler_type="linear",
-        warmup_ratio=0.1,
-        load_best_model_at_end=True,
-        metric_for_best_model="f1",
-        greater_is_better=True,
-        save_total_limit=2,
-        seed=42,
-        report_to="none"
-    )
+    try:
+        training_args = TrainingArguments(
+            output_dir=OUTPUT_DIR,
+            eval_strategy="epoch",
+            save_strategy="epoch",
+            logging_strategy="steps",
+            logging_steps=100,
+            per_device_train_batch_size=8,
+            per_device_eval_batch_size=8,
+            num_train_epochs=3,
+            learning_rate=2e-5,
+            weight_decay=0.01,
+            lr_scheduler_type="linear",
+            warmup_ratio=0.1,
+            load_best_model_at_end=True,
+            metric_for_best_model="f1",
+            greater_is_better=True,
+            save_total_limit=2,
+            seed=42,
+            report_to="none"
+        )
+    except TypeError:
+        training_args = TrainingArguments(
+            output_dir=OUTPUT_DIR,
+            evaluation_strategy="epoch",
+            save_strategy="epoch",
+            logging_strategy="steps",
+            logging_steps=100,
+            per_device_train_batch_size=8,
+            per_device_eval_batch_size=8,
+            num_train_epochs=3,
+            learning_rate=2e-5,
+            weight_decay=0.01,
+            lr_scheduler_type="linear",
+            warmup_ratio=0.1,
+            load_best_model_at_end=True,
+            metric_for_best_model="f1",
+            greater_is_better=True,
+            save_total_limit=2,
+            seed=42,
+            report_to="none"
+        )
 
     trainer = WeightedTrainer(
         model=model,
