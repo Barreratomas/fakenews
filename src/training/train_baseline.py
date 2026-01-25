@@ -1,11 +1,8 @@
 import os
+import json
 import numpy as np
 from datasets import load_from_disk
-from transformers import (
-    AutoModelForSequenceClassification,
-    TrainingArguments,
-    Trainer
-)
+from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -34,6 +31,9 @@ def main():
     train_ds = load_from_disk(os.path.join(DATA_DIR, "train"))
     val_ds = load_from_disk(os.path.join(DATA_DIR, "val"))
 
+    train_ds.set_format(type="torch")
+    val_ds.set_format(type="torch")
+
     print("🔹 Cargando modelo:", MODEL_NAME)
     model = AutoModelForSequenceClassification.from_pretrained(
         MODEL_NAME,
@@ -55,6 +55,7 @@ def main():
         metric_for_best_model="f1",
         greater_is_better=True,
         save_total_limit=2,
+        seed=42,
         report_to="none"
     )
 
@@ -71,8 +72,13 @@ def main():
 
     print("📊 Evaluación final")
     metrics = trainer.evaluate()
+
     for k, v in metrics.items():
         print(f"{k}: {v}")
+
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    with open(os.path.join(OUTPUT_DIR, "metrics.json"), "w") as f:
+        json.dump(metrics, f, indent=2)
 
     print("💾 Guardando modelo")
     trainer.save_model(OUTPUT_DIR)
