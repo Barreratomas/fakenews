@@ -1,3 +1,4 @@
+from pathlib import Path
 import os
 import sys
 import json
@@ -44,7 +45,7 @@ class WeightedTrainer(Trainer):
         self.class_weights = class_weights
         self.num_labels = num_labels
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, *args, **kwargs):
         labels = inputs.get("labels")
         outputs = model(**{k: v for k, v in inputs.items() if k != "labels"})
         logits = outputs.get("logits")
@@ -56,30 +57,44 @@ class WeightedTrainer(Trainer):
         return (loss, outputs) if return_outputs else loss
 
 
+def main(data_dir, output_dir, model_name="roberta-base", num_labels=2, num_train_epochs=3):
+    """
+    Entrena el modelo ponderado (WeightedTrainer) usando datasets procesados.
+
+    Args:
+        data_dir (str or Path): Carpeta con datasets procesados (train/val).
+        output_dir (str or Path): Carpeta donde guardar modelos y métricas.
+        model_name (str): Nombre del modelo preentrenado de HuggingFace.
+        num_labels (int): Número de clases.
+        num_train_epochs (int): Número de épocas.
+    """
+    data_dir = Path(data_dir)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     print("🔹 Cargando datasets procesados")
-    train_ds = load_from_disk(os.path.join(DATA_DIR, "train"))
-    val_ds = load_from_disk(os.path.join(DATA_DIR, "val"))
+    train_ds = load_from_disk(data_dir / "train")
+    val_ds = load_from_disk(data_dir / "val")
 
     train_ds.set_format(type="torch")
     val_ds.set_format(type="torch")
 
     print("🔹 Cálculo de class weights")
-    class_weights = compute_class_weights(train_ds["labels"], num_labels=2)
+    class_weights = compute_class_weights(train_ds["labels"], num_labels=num_labels)
 
-    print("🔹 Cargando modelo:", MODEL_NAME)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=2)
+    print("🔹 Cargando modelo:", model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
 
     try:
         training_args = TrainingArguments(
-            output_dir=OUTPUT_DIR,
+            output_dir=str(output_dir),
             eval_strategy="epoch",
             save_strategy="epoch",
             logging_strategy="steps",
             logging_steps=100,
             per_device_train_batch_size=8,
             per_device_eval_batch_size=8,
-            num_train_epochs=3,
+            num_train_epochs=num_train_epochs,
             learning_rate=2e-5,
             weight_decay=0.01,
             lr_scheduler_type="linear",
@@ -93,14 +108,14 @@ class WeightedTrainer(Trainer):
         )
     except TypeError:
         training_args = TrainingArguments(
-            output_dir=OUTPUT_DIR,
+            output_dir=str(output_dir),
             evaluation_strategy="epoch",
             save_strategy="epoch",
             logging_strategy="steps",
             logging_steps=100,
             per_device_train_batch_size=8,
             per_device_eval_batch_size=8,
-            num_train_epochs=3,
+            num_train_epochs=num_train_epochs,
             learning_rate=2e-5,
             weight_decay=0.01,
             lr_scheduler_type="linear",
@@ -120,11 +135,11 @@ class WeightedTrainer(Trainer):
         eval_dataset=val_ds,
         compute_metrics=compute_metrics,
         class_weights=class_weights,
-        num_labels=2,
+        num_labels=num_labels,
         callbacks=[EarlyStoppingCallback(early_stopping_patience=2)]
     )
 
-    print("🚀 Entrenando modelo con class weights y early stopping")
+    print("🚀 Entrenando modelo ponderado")
     trainer.train()
 
     print("📊 Evaluación final")
@@ -132,13 +147,19 @@ class WeightedTrainer(Trainer):
     for k, v in metrics.items():
         print(f"{k}: {v}")
 
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with open(os.path.join(OUTPUT_DIR, "metrics.json"), "w") as f:
+    # Guardar métricas
+    with open(output_dir / "metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
 
-    print("💾 Guardando modelo")
-    trainer.save_model(OUTPUT_DIR)
+    print(f"💾 Modelo y métricas guardados en {output_dir}")
+    trainer.save_model(output_dir)
 
 
 if __name__ == "__main__":
-    main()
+    main(
+        data_dir=DATA_DIR,
+        output_dir=OUTPUT_DIR,
+        model_name=MODEL_NAME,
+        num_labels=2,
+        num_train_epochs=3
+    )
