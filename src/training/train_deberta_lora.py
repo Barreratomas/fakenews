@@ -1,9 +1,8 @@
-from pathlib import Path
 import os
 import sys
-import json
 import numpy as np
 import torch
+from pathlib import Path
 from datasets import load_from_disk
 from transformers import (
     AutoModelForSequenceClassification,
@@ -11,129 +10,84 @@ from transformers import (
     Trainer,
     EarlyStoppingCallback,
     AutoTokenizer,
+    DebertaV2Tokenizer
 )
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-from transformers import DebertaV2Tokenizer
+from peft import LoraConfig, get_peft_model, TaskType
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+from src.config import (
+    TRAIN_DATA_DIR,
+    MODELS_DIR,
+    DEFAULT_BASE_MODEL_NAME
+)
+from src.utils.logger import get_logger
+from src.training.utils.metrics import compute_metrics, compute_class_weights
+from src.training.utils.trainer_utils import WeightedTrainer
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "..", "preprocessing", "processed")
-MODEL_NAME = os.environ.get("MODEL_NAME", "microsoft/deberta-v3-base")
-OUTPUT_DIR = os.path.join(BASE_DIR, "..", "..", "models", "deberta_lora")
+logger = get_logger(__name__)
 
-
-def compute_metrics(eval_pred):
-    logits, labels = eval_pred
-    preds = np.argmax(logits, axis=1)
-    precision, recall, f1, _ = precision_recall_fscore_support(labels, preds, average="binary")
-    acc = accuracy_score(labels, preds)
-    return {"accuracy": acc, "precision": precision, "recall": recall, "f1": f1}
-
-
-def compute_class_weights(labels, num_labels=2):
-    labels = np.array(labels, dtype=int)
-    counts = np.bincount(labels, minlength=num_labels)
-    total = counts.sum()
-    weights = total / (num_labels * counts)
-    return torch.tensor(weights, dtype=torch.float)
-
-
-class WeightedTrainer(Trainer):
-    def __init__(self, class_weights=None, num_labels=2, **kwargs):
-        super().__init__(**kwargs)
-        self.class_weights = class_weights
-        self.num_labels = num_labels
-
-    def compute_loss(self, model, inputs, return_outputs=False, *args, **kwargs):
-        labels = inputs.get("labels")
-        outputs = model(**{k: v for k, v in inputs.items() if k != "labels"})
-        logits = outputs.get("logits")
-        loss_fct = torch.nn.CrossEntropyLoss(weight=self.class_weights.to(logits.device))
-        loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-        return (loss, outputs) if return_outputs else loss
-
-
-def main(data_dir, output_dir, model_name="microsoft/deberta-v3-base", num_labels=2, num_train_epochs=3):
-    data_dir = Path(data_dir)
-    output_dir = Path(output_dir)
+def main(
+    data_dir: Path = TRAIN_DATA_DIR, 
+    output_dir: Path = MODELS_DIR / "deberta_lora", 
+    model_name: str = "microsoft/deberta-v3-base", 
+    num_labels: int = 2, 
+    num_train_epochs: int = 3
+):
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f"Cargando datos desde {data_dir}")
+    try:
+        train_ds = load_from_disk(str(data_dir / "train"))
+        val_ds = load_from_disk(str(data_dir / "val"))
+    except FileNotFoundError:
+        logger.error(f"No se encontraron datos en {data_dir}. Ejecuta el preprocesamiento primero.")
+        sys.exit(1)
 
-    train_ds = load_from_disk(data_dir / "train")
-    val_ds = load_from_disk(data_dir / "val")
     train_ds.set_format(type="torch")
     val_ds.set_format(type="torch")
 
+    logger.info("Calculando pesos de clase...")
     class_weights = compute_class_weights(train_ds["labels"], num_labels=num_labels)
+    logger.info(f"Pesos de clase: {class_weights}")
 
+    logger.info(f"Cargando tokenizer: {model_name}")
     try:
         tokenizer = DebertaV2Tokenizer.from_pretrained(model_name)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Error cargando DebertaV2Tokenizer: {e}. Intentando AutoTokenizer.")
         tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+
+    logger.info(f"Cargando modelo base: {model_name}")
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
     model.config.id2label = {0: "FAKE", 1: "REAL"}
     model.config.label2id = {"FAKE": 0, "REAL": 1}
 
-    lora_applied = False
-    try:
-        from peft import LoraConfig, get_peft_model
-        lora_config = LoraConfig(
-            r=8,
-            lora_alpha=16,
-            lora_dropout=0.1,
-            bias="none",
-            task_type="SEQ_CLS",
-            target_modules=["query_proj", "key_proj", "value_proj"],
-        )
-        model = get_peft_model(model, lora_config)
-        lora_applied = True
-    except Exception:
-        lora_applied = False
+    logger.info("Aplicando LoRA...")
+    lora_config = LoraConfig(
+        r=8,
+        lora_alpha=16,
+        lora_dropout=0.1,
+        bias="none",
+        task_type=TaskType.SEQ_CLS,
+        target_modules=["query_proj", "key_proj", "value_proj"],
+    )
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
 
-    try:
-        training_args = TrainingArguments(
-            output_dir=str(output_dir),
-            eval_strategy="epoch",
-            save_strategy="epoch",
-            logging_strategy="steps",
-            logging_steps=100,
-            per_device_train_batch_size=8,
-            per_device_eval_batch_size=8,
-            num_train_epochs=num_train_epochs,
-            learning_rate=2e-5,
-            weight_decay=0.01,
-            lr_scheduler_type="linear",
-            warmup_ratio=0.1,
-            load_best_model_at_end=True,
-            metric_for_best_model="f1",
-            greater_is_better=True,
-            save_total_limit=2,
-            seed=42,
-            report_to="none"
-        )
-    except TypeError:
-        training_args = TrainingArguments(
-            output_dir=str(output_dir),
-            evaluation_strategy="epoch",
-            save_strategy="epoch",
-            logging_strategy="steps",
-            logging_steps=100,
-            per_device_train_batch_size=8,
-            per_device_eval_batch_size=8,
-            num_train_epochs=num_train_epochs,
-            learning_rate=2e-5,
-            weight_decay=0.01,
-            lr_scheduler_type="linear",
-            warmup_ratio=0.1,
-            load_best_model_at_end=True,
-            metric_for_best_model="f1",
-            greater_is_better=True,
-            save_total_limit=2,
-            seed=42,
-            report_to="none"
-        )
+    training_args = TrainingArguments(
+        output_dir=str(output_dir),
+        eval_strategy="epoch",
+        save_strategy="epoch",
+        logging_strategy="steps",
+        logging_steps=10,
+        learning_rate=2e-5,
+        per_device_train_batch_size=8,
+        per_device_eval_batch_size=8,
+        num_train_epochs=num_train_epochs,
+        weight_decay=0.01,
+        load_best_model_at_end=True,
+        metric_for_best_model="f1",
+        push_to_hub=False,
+    )
 
     trainer = WeightedTrainer(
         model=model,
@@ -142,30 +96,15 @@ def main(data_dir, output_dir, model_name="microsoft/deberta-v3-base", num_label
         eval_dataset=val_ds,
         compute_metrics=compute_metrics,
         class_weights=class_weights,
-        num_labels=num_labels,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)]
+        num_labels=num_labels
     )
 
+    logger.info("Iniciando entrenamiento...")
     trainer.train()
-
-    metrics = trainer.evaluate()
-    with open(output_dir / "metrics.json", "w") as f:
-        json.dump(metrics, f, indent=2)
-
-    if lora_applied:
-        try:
-            model.save_pretrained(output_dir)
-        except Exception:
-            pass
-    else:
-        trainer.save_model(output_dir)
-
+    
+    logger.info(f"Guardando modelo en {output_dir}")
+    trainer.save_model(str(output_dir))
+    tokenizer.save_pretrained(str(output_dir))
 
 if __name__ == "__main__":
-    main(
-        data_dir=DATA_DIR,
-        output_dir=OUTPUT_DIR,
-        model_name=MODEL_NAME,
-        num_labels=2,
-        num_train_epochs=3
-    )
+    main()

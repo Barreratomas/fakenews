@@ -178,7 +178,7 @@ Ejemplo:
 
  Esto ya es fact-checking asistido.
 
- PASO 11 – API BACKEND (ACTUALIZADO)
+ PASO 11 – API BACKEND 
 Endpoint único
 POST /predict
 

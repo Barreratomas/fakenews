@@ -51,6 +51,7 @@ librt==0.7.8
 lime==0.2.0.1
 llvmlite==0.46.0b1
 lxml==6.0.2
+lxml_html_clean==0.4.3
 markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 matplotlib==3.10.8
@@ -69,6 +70,7 @@ orjson==3.11.5
 packaging==26.0
 pandas==2.3.3
 pathspec==1.0.3
+peft==0.18.1
 pillow==12.1.0
 platformdirs==4.5.1
 propcache==0.4.1
@@ -96,6 +98,8 @@ scikit-image==0.26.0
 scikit-learn==1.8.0
 scipy==1.17.0
 semantic-version==2.10.0
+sentence-transformers==5.2.2
+sentencepiece==0.2.1
 setuptools==80.10.1
 sgmllib3k==1.0.0
 shap==0.50.0
@@ -123,6 +127,7 @@ typing_extensions==4.15.0
 tzdata==2025.3
 urllib3==2.6.3
 uvicorn==0.40.0
+validators==0.35.0
 webencodings==0.5.1
 xxhash==3.6.0
 yarl==1.22.0
