@@ -29,7 +29,7 @@ def main(
     output_dir=None, 
     model_name=DEFAULT_BASE_MODEL_NAME, 
     num_labels=2, 
-    num_train_epochs=5
+    num_train_epochs=10
 ):
     train_dir = Path(data_dir) / "train" if data_dir else TRAIN_DATA_DIR
     val_dir = Path(data_dir) / "val" if data_dir else VAL_DATA_DIR
@@ -59,8 +59,8 @@ def main(
         save_strategy="epoch",
         logging_strategy="steps",
         logging_steps=50,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
         num_train_epochs=num_train_epochs,
         weight_decay=0.01,
         load_best_model_at_end=True,
@@ -76,7 +76,7 @@ def main(
         compute_metrics=compute_metrics,
         class_weights=class_weights,
         num_labels=num_labels,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)]
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
     )
 
     logger.info("Iniciando entrenamiento ponderado...")

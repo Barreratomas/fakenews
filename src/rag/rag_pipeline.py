@@ -7,6 +7,7 @@ import pandas as pd
 import faiss
 from sentence_transformers import SentenceTransformer
 from transformers import pipeline, AutoModelForSeq2SeqLM, AutoTokenizer
+from ddgs import DDGS
 
 from src.config import (
     RAG_INDEX_DIR, 
@@ -14,11 +15,47 @@ from src.config import (
     RAG_METADATA_PATH, 
     RAG_INFO_PATH, 
     SENTENCE_TRANSFORMER_NAME,
-    RAW_DATA_DIR
+    RAW_DATA_DIR,
+    RAG_SOURCE
 )
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+class WebRetriever:
+    """
+    Recuperador de información basado en búsqueda web (DuckDuckGo).
+    Reemplaza al RagIndex local cuando se requiere acceso a internet.
+    """
+    def __init__(self):
+        self.ddgs = DDGS()
+
+    def query(self, text: str, top_k: int = 5) -> List[Dict]:
+        results = []
+        try:
+            logger.info(f"Buscando en web: {text[:50]}...")
+            # duckduckgo-search returns list of dicts with keys: title, href, body
+            # Nota: DDGS.text devuelve un generador o lista dependiendo de la versión, forzamos lista
+            gen = self.ddgs.text(text, max_results=top_k)
+            search_results = list(gen)
+            
+            if search_results:
+                for i, r in enumerate(search_results):
+                    # Combinar título y cuerpo para dar más contexto al LLM
+                    content = f"{r.get('title', '')}: {r.get('body', '')}"
+                    results.append({
+                        "text": content,
+                        "source": r.get('href', ''),
+                        "score": 1.0 / (i + 1)  # Score heurístico basado en rango (1.0, 0.5, 0.33...)
+                    })
+            else:
+                logger.warning("DuckDuckGo no devolvió resultados.")
+        except Exception as e:
+            logger.error(f"Error en búsqueda web DuckDuckGo: {e}")
+            print(f"DEBUG ERROR DDGS: {e}") # Debug temporal
+            raise e
+            
+        return results
 
 class RagIndex:
     def __init__(
@@ -127,15 +164,21 @@ class RagIndex:
 
 class FactChecker:
     _instance = None
+    _initialized = False
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(FactChecker, cls).__new__(cls)
-            cls._instance.rag = RagIndex()
-            cls._instance.llm_pipeline = None
-            cls._instance.tokenizer = None
-            cls._instance.model = None
         return cls._instance
+
+    def __init__(self):
+        if not self._initialized:
+            logger.info("Inicializando FactChecker (Singleton)...")
+            self.rag = WebRetriever()
+            self.llm_pipeline = None
+            self.tokenizer = None
+            self.model = None
+            self._initialized = True
 
     def _ensure_llm(self):
         if self.llm_pipeline is None:
@@ -152,7 +195,7 @@ class FactChecker:
 
     def check(self, claim: str) -> Dict:
         """
-        1. Busca en RAG (retrieval).
+        1. Busca en Internet (WebRetriever).
         2. Si no hay contexto relevante o vacío, retorna 'unverified'.
         3. Si hay contexto, usa LLM para verificar.
         """
@@ -160,13 +203,14 @@ class FactChecker:
         retrieved = self.rag.query(claim, top_k=3)
         if not retrieved:
             return {
-                "analysis": "No se encontró información relevante en la base de conocimientos.",
+                "analysis": "No se encontró información relevante en internet.",
                 "sources": [],
                 "analysis_type": "heuristic"
             }
             
         # 2. Context building
-        context_texts = [r["text"][:300] for r in retrieved] # Truncar cada fuente
+        # Aumentamos el límite de caracteres para el contexto ya que los snippets web pueden ser densos
+        context_texts = [r["text"][:500] for r in retrieved] 
         context_block = "\n".join(f"- {t}" for t in context_texts)
         
         # 3. LLM Generation
@@ -194,7 +238,7 @@ class FactChecker:
         return {
             "analysis": analysis,
             "sources": retrieved,
-            "analysis_type": "llm_rag"
+            "analysis_type": "llm_rag_web"
         }
 
 def rag_fact_check(text: str) -> Dict:

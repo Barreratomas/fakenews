@@ -13,12 +13,13 @@ from src.data.load_datasets import load_dataset, normalize_labels
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROCESSED_DIR = os.path.join(BASE_DIR, "processed")
-TOKENIZER_NAME = os.environ.get("TOKENIZER_NAME", "roberta-base")
-MAX_LENGTH = 256
+TOKENIZER_NAME = os.environ.get("TOKENIZER_NAME", "microsoft/deberta-v3-base")
+MAX_LENGTH = 512
 
 
 def to_hf_dataset(df, tokenizer, with_labels=True):
-    texts = df["text"].astype(str).map(clean_text).tolist()
+    # Asumimos que el texto ya viene limpio desde main()
+    texts = df["text"].astype(str).tolist()
 
     enc = tokenizer(
         texts,
@@ -46,11 +47,21 @@ def save_dataset(ds, name):
 
 
 def main():
+    print(f"Cargando tokenizer: {TOKENIZER_NAME}...")
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME)
 
     # ---- TRAIN / VAL ----
+    print("Procesando dataset de entrenamiento...")
     train_df = load_dataset("train.csv")
+    
+    # Limpieza
     train_df["text"] = train_df["text"].map(clean_text)
+    
+    # Deduplicación
+    len_before = len(train_df)
+    train_df = train_df.drop_duplicates(subset=["text"])
+    print(f"⬇ Eliminados {len_before - len(train_df)} duplicados exactos en train.csv")
+
     train_df["label"] = normalize_labels(train_df["label"])
     train_df = train_df.dropna(subset=["label"]).astype({"label": int})
 

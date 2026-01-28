@@ -1,112 +1,129 @@
-# Objetivo
+# Sistema de Detección de Fake News
 
-Desarrollar un sistema de detección automática de fake news utilizando modelos de Natural Language Processing (NLP) basados en Transformers, capaz de analizar texto plano o noticias obtenidas desde URLs y clasificar su veracidad.
+## Descripción del Proyecto
 
-## Idioma
-- Idioma inicial del sistema: Español
-- (El modelo puede extenderse a otros idiomas en futuras versiones)
+Fake News Detection System es un sistema de detección de noticias falsas basado en modelos de NLP modernos. Permite analizar tanto texto plano como URLs de artículos periodísticos, extrayendo automáticamente el contenido antes de su evaluación.
 
+**Importante**: Cuando se ingresa una URL, el sistema extrae automáticamente el texto del artículo y lo analiza como texto plano.
 
-## Entradas del sistema
-El sistema acepta dos tipos de entrada:
+## Cómo Funciona el Sistema
 
-- Texto de una noticia:
-* Artículo completo o fragmento relevante en texto plano.
+Arquitectura del sistema a alto nivel:
 
-- URL de una noticia:
-* Enlace a un artículo periodístico publicado en la web.
+```
+INPUT
+ ├─ Texto ──────────────→ Clasificador Transformer → Predicción
+ └─ URL → Scraper → Texto → Clasificador Transformer → Predicción
+                                     ↓
+                                RAG + LLM (Verificación)
+```
 
+El flujo de trabajo se compone de los siguientes pasos:
 
-## Salidas del sistema
-Para cada entrada, el sistema devuelve:
-- Clasificación binaria:
-* "Fake" si la noticia es falsa.
-* "True" si la noticia es verdadera.
+*   **Clasificación binaria (Fake / Real)**: Determinación de la veracidad del contenido basada en patrones aprendidos.
+*   **Modelo base**: Uso de arquitectura Transformer fine-tuned para la tarea específica.
+*   **Eficiencia**: Implementación de LoRA (Low-Rank Adaptation) para optimización de recursos.
+*   **RAG (Retrieval-Augmented Generation)**: Contraste de información con fuentes reales indexadas para validación contextual.
+*   **Explicabilidad**: Identificación y resaltado de palabras clave que influyeron en la predicción.
 
-- Explicación básica del resultado:
-* Palabras, frases o patrones que influyeron en la predicción
+## API Backend
 
+El sistema expone un endpoint REST para integración. Es importante notar que la API y la interfaz de usuario comparten el mismo pipeline de inferencia unificado.
 
-## Aclaración clave sobre URLs
-Cuando se ingresa una URL, el sistema extrae automáticamente el contenido del artículo antes de analizarlo.
+**Endpoint**: `POST /predict`
 
-- el modelo no se entrena con links, solo con texto
-- La extracción del contenido se realiza únicamente en tiempo de inferencia.
-- El texto extraído es el que se utiliza para:
-    * Clasificación
-    * Explicabilidad
-38→    * Comparacion con otras noticias (RAG)
-39→
-40→### Módulo RAG (Fact-Checking Asistido)
-41→El sistema incluye un sub-pipeline de Recuperación Aumentada (RAG) para contrastar noticias:
-42→- Busca noticias similares en un corpus confiable (onlytrue1000.csv).
-43→- Usa embeddings semánticos (Sentence Transformers) y FAISS.
-44→- **Importante**: El "score" devuelto por FAISS representa **similitud semántica (coseno)**, no veracidad. Un score alto indica que hablan del mismo tema, no que la noticia sea cierta.
-45→- Compara narrativas usando un LLM (Flan-T5) o un fallback heurístico si el modelo no está disponible.
-46→
-47→### Extracción de artículos desde URLs
+**Ejemplo de solicitud:**
 
-El sistema soporta análisis directo desde enlaces de noticias.
-Se implementa extracción robusta usando `newspaper3k` con manejo de errores:
+```json
+{
+  "type": "url",
+  "content": "https://news.site/article"
+}
+```
 
-- URL inválida
-- Error de conexión
-- Artículos cortos
-- Paywalls
-- Errores de parseo
+**Ejemplo de respuesta:**
 
-La extracción se ejecuta únicamente en inferencia.
+```json
+{
+  "label": "FAKE",
+  "confidence": 0.92,
+  "extracted_title": "Título extraído de la noticia...",
+  "explanation": "Palabras clave identificadas...",
+  "rag_analysis": "Análisis comparativo con fuentes confiables..."
+}
+```
 
+## Interfaz de Usuario (UI)
 
-## Alcance del sistema
-- Clasificación binaria (Fake / Real)
-- Uso de modelos Transformer modernos
-- Explicabilidad del resultado
-- Soporte para URLs de noticias
-- API y despliegue como producto
+El proyecto incluye una interfaz gráfica desarrollada en Gradio que permite interactuar con el modelo de forma sencilla e intuitiva:
 
+*   **Selector de entrada**: Permite alternar entre análisis de Texto y URL.
+*   **Vista previa**: Muestra el texto extraído automáticamente desde la URL para validación del usuario.
+*   **Resultado**: Visualización clara de la etiqueta (Fake/Real) y el nivel de confianza del modelo.
+*   **Explicación del modelo**: Detalles sobre las palabras que más influyeron en la decisión.
+*   **Análisis comparativo (RAG)**: Sección dedicada a mostrar fuentes similares y su consistencia con la noticia analizada.
 
-## Enfoque del proyecto
-Este proyecto combina:
-- Machine Learning aplicado
+## Stack Tecnológico
 
-- Ingeniería de datos real
+El proyecto utiliza un stack tecnológico moderno y modular:
 
-- Procesamiento de lenguaje natural
+**NLP & ML**
+*   PyTorch
+*   Hugging Face Transformers
+*   DeBERTa v3 + LoRA (PEFT)
 
-- Scraping responsable
+**Backend**
+*   FastAPI
+*   Pydantic
 
-- Arquitectura de producto
- 
- ## RAG – Asistencia de verificación
- El sistema agrega un sub-pipeline paralelo de fact-checking asistido:
- - Corpus confiable: noticias reales en `data/raw/onlytrue1000.csv` (texto plano en español, sin duplicados).
- - Embeddings: `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` (dimensión estable, multilingüe).
- - Vector DB: FAISS local con persistencia en `models/rag_index/`.
- - Recuperación: top‑k vecinos por similitud semántica.
- - LLM comparador: `google/flan-t5-base` (con fallback heurístico si no está disponible).
- - Las fuentes recuperadas provienen de un corpus previamente curado de noticias reales.
- 
- Flujo:
- 1. Construir índice desde el corpus real (no es entrenamiento, es indexado).
- 2. Para una noticia nueva (texto o URL ya extraído), generar embedding y consultar el índice.
- 3. Preparar el contexto y comparar narrativas con LLM.
- 4. Devolver salida explicativa (resumen comparativo, contradicciones, nivel de alineación).
- 
- Limitaciones:
- - No garantiza veracidad absoluta ni reemplaza el criterio humano.
- - Puede fallar con paywalls o textos muy cortos.
- - Depende de la calidad y cobertura del corpus confiable.
- - Umbral conceptual: resultados con `score < 0.4` se consideran débilmente relacionados.
- - Alcance: el RAG no decide Fake/Real; aporta contexto comparativo y explicativo.
+**RAG (Fact-Checking)**
+*   FAISS
+*   Sentence Transformers
+*   FLAN-T5
 
-### API – Endpoint /predict
+**Scraping**
+*   newspaper3k
+*   BeautifulSoup
+*   lxml
 
-El sistema expone un único endpoint que acepta texto o URLs.
-Cuando se ingresa una URL, el contenido se extrae automáticamente
-antes del análisis.
+**UI & Deploy**
+*   Gradio
+*   Docker
 
-La salida incluye:
-- Clasificación fake / real
-- Confianza del modelo
-- Explicación basada en recuperación de fuentes reales (RAG)
+## Limitaciones del Sistema
+
+El sistema presenta las siguientes limitaciones conocidas:
+
+*   **Naturaleza probabilística**: El sistema no garantiza veracidad absoluta, sino una estimación probabilística basada en patrones lingüísticos y semánticos aprendidos.
+*   **Acceso a contenido**: Puede fallar en la extracción de artículos protegidos por paywalls estrictos o con estructuras HTML no estándar.
+*   **Alcance del entrenamiento**: El modelo fue entrenado con texto plano; no verifica la reputación de la fuente en tiempo real ni metadatos externos.
+*   **Dependencia del RAG**: La calidad del análisis comparativo depende directamente de la cobertura y calidad del índice de noticias reales utilizado.
+*   **Escalabilidad**: El diseño actual prioriza la demostración técnica y la arquitectura limpia, no estando optimizado para procesamiento masivo concurrente en producción.
+
+## Posibles Mejoras
+
+Para futuras iteraciones del proyecto se contempla la implementación de:
+
+*   Fine-tuning con datasets multilingües para ampliar el alcance global.
+*   Verificación cruzada integrando APIs externas de fact-checking en tiempo real.
+*   Módulos específicos para detección de clickbait y sensacionalismo.
+*   Soporte nativo multi-idioma.
+*   Despliegue optimizado con soporte GPU y procesamiento por lotes (batching).
+*   Monitoreo continuo de drift del modelo para mantenimiento a largo plazo.
+
+## Docker y Despliegue
+
+El proyecto está contenerizado para facilitar su ejecución en cualquier entorno. El contenedor expone una UI interactiva vía Gradio.
+
+**Construcción y ejecución:**
+
+```bash
+docker build -t fake-news-detector .
+docker run -p 7860:7860 fake-news-detector
+```
+
+La interfaz estará disponible en `http://localhost:7860`.
+
+## Notas Finales
+
+Este proyecto fue desarrollado con fines educativos y de demostración técnica, priorizando una arquitectura limpia, buenas prácticas de desarrollo y extensibilidad del código.

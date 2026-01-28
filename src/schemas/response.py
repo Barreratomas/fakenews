@@ -8,3 +8,5 @@ class PredictResponse(BaseModel):
     extracted_title: Optional[str] = None
     rag_analysis: Optional[str] = None
     retrieved_sources: Optional[List[Dict]] = None
+    model_explanation: Optional[Dict] = None
+    text: Optional[str] = None

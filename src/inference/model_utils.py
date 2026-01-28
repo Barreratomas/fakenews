@@ -45,15 +45,15 @@ def load_text_clf_pipeline(model_dir: Optional[str] = None) -> Tuple[Any, AutoTo
         # Intentar cargar tokenizer localmente primero (para evitar descargas)
         try:
             logger.info(f"Intentando cargar tokenizer desde {model_dir}")
-            tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=False)
+            tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=True)
         except Exception:
             logger.warning(f"No se encontró tokenizer en {model_dir}, cargando desde base: {base_name}")
             try:
                 # Intentar cargar tokenizer específico (ej. DebertaV2)
-                from transformers import DebertaV2Tokenizer
-                tokenizer = DebertaV2Tokenizer.from_pretrained(base_name)
+                from transformers import DebertaV2TokenizerFast
+                tokenizer = DebertaV2TokenizerFast.from_pretrained(base_name, use_fast=True)
             except Exception:
-                tokenizer = AutoTokenizer.from_pretrained(base_name, use_fast=False)
+                tokenizer = AutoTokenizer.from_pretrained(base_name, use_fast=True)
             
         model = AutoModelForSequenceClassification.from_pretrained(base_name, num_labels=2)
         

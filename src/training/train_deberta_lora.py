@@ -69,6 +69,7 @@ def main(
         bias="none",
         task_type=TaskType.SEQ_CLS,
         target_modules=["query_proj", "key_proj", "value_proj"],
+        modules_to_save=["pooler", "classifier"],
     )
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
@@ -79,13 +80,14 @@ def main(
         save_strategy="epoch",
         logging_strategy="steps",
         logging_steps=10,
-        learning_rate=2e-5,
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
-        num_train_epochs=num_train_epochs,
+        learning_rate=4e-5,  # Slightly higher for LoRA
+        per_device_train_batch_size=16, # Increased batch size
+        per_device_eval_batch_size=16,
+        num_train_epochs=10, # Increased epochs
         weight_decay=0.01,
         load_best_model_at_end=True,
         metric_for_best_model="f1",
+        save_total_limit=2, # Keep only best 2 checkpoints
         push_to_hub=False,
     )
 
@@ -96,7 +98,8 @@ def main(
         eval_dataset=val_ds,
         compute_metrics=compute_metrics,
         class_weights=class_weights,
-        num_labels=num_labels
+        num_labels=num_labels,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)] # Stop if no improvement for 3 epochs
     )
 
     logger.info("Iniciando entrenamiento...")

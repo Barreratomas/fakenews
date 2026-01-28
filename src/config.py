@@ -55,11 +55,13 @@ RAG_INFO_PATH = RAG_INDEX_DIR / "index_info.json"
 RAG_TOP_K = 5
 # Umbral sugerido para considerar "relevante" un documento (heurística)
 RAG_SIMILARITY_THRESHOLD = 0.4
+# Fuente de RAG: SIEMPRE "web" para garantizar acceso a internet
+RAG_SOURCE = "web"
 
 # ==========================================
 # Configuración de Extracción
 # ==========================================
-MIN_ARTICLE_LENGTH = 500
+MIN_ARTICLE_LENGTH = 150
 PAYWALL_KEYWORDS = [
     "suscríbete",
     "suscripción",

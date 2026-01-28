@@ -3,7 +3,7 @@ import os
 import json
 import numpy as np
 from datasets import load_from_disk
-from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, AutoTokenizer
+from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, AutoTokenizer, EarlyStoppingCallback
 from src.training.utils.metrics import compute_metrics
 from src.config import (
     TRAIN_DATA_DIR, 
@@ -20,7 +20,7 @@ def main(
     output_dir=None, 
     model_name=DEFAULT_BASE_MODEL_NAME, 
     num_labels=2, 
-    num_train_epochs=3
+    num_train_epochs=10
 ):
     """
     Entrena el modelo baseline usando datasets procesados.
@@ -50,8 +50,8 @@ def main(
             save_strategy="epoch",
             logging_strategy="steps",
             logging_steps=100,
-            per_device_train_batch_size=8,
-            per_device_eval_batch_size=8,
+            per_device_train_batch_size=16,
+            per_device_eval_batch_size=16,
             num_train_epochs=num_train_epochs,
             weight_decay=0.01,
             load_best_model_at_end=True,
@@ -65,7 +65,8 @@ def main(
             train_dataset=train_ds,
             eval_dataset=val_ds,
             compute_metrics=compute_metrics,
-            tokenizer=tokenizer  # Pasar tokenizer para que se guarde automáticamente
+            tokenizer=tokenizer,  # Pasar tokenizer para que se guarde automáticamente
+            callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
         )
 
         logger.info("Iniciando entrenamiento...")
