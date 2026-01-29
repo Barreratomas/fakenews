@@ -82,14 +82,15 @@ def main(
     else:
         logger.warning("GPU no detectada. Entrenando en CPU.")
 
-    logger.info("Aplicando LoRA...")
+    logger.info("Aplicando LoRA optimizado...")
     lora_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
+        r=16,  # Aumentado para mayor capacidad
+        lora_alpha=32,
         lora_dropout=0.1,
         bias="none",
         task_type=TaskType.SEQ_CLS,
-        target_modules=["query_proj", "key_proj", "value_proj"],
+        # Targeteamos todas las capas lineales (Atención + FFN) para acercarnos al full fine-tuning
+        target_modules=["query_proj", "key_proj", "value_proj", "dense"],
         modules_to_save=["pooler", "classifier"],
     )
     model = get_peft_model(model, lora_config)
