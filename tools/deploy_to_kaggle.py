@@ -10,8 +10,24 @@ from zipfile import ZipFile
 KAGGLE_USER = "" # Se llenará dinámicamente desde kaggle.json
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 BUILD_DIR = PROJECT_ROOT / "build_kaggle"
-SRC_ZIP = BUILD_DIR / "fake_news_src.zip"
-DATA_ZIP = BUILD_DIR / "fake_news_data.zip"
+WORKSPACE_ZIP = BUILD_DIR / "fake_news_workspace.zip"
+DATASET_SLUG = "fake-news-workspace"
+
+# Carpetas a IGNORAR al empaquetar
+IGNORE_DIRS = [
+    "__pycache__", 
+    ".git", 
+    ".venv", 
+    "venv", 
+    "build_kaggle", 
+    "models", # No subimos modelos entrenados para ahorrar espacio
+    ".idea", 
+    ".vscode",
+    "wandb",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".pytest_cache"
+]
 
 def check_kaggle_auth():
     """Verifica que kaggle.json exista y carga el usuario."""
@@ -33,44 +49,53 @@ def prepare_build_dir():
         shutil.rmtree(BUILD_DIR)
     BUILD_DIR.mkdir()
 
-def zip_source_code():
-    print("📦 Empaquetando código fuente (src/)...")
-    with ZipFile(SRC_ZIP, 'w') as zipf:
-        for root, dirs, files in os.walk(PROJECT_ROOT / "src"):
+def zip_workspace():
+    print(f"📦 Empaquetando TODO el Workspace en un único Dataset...")
+    print(f"   -> Root: {PROJECT_ROOT}")
+    
+    with ZipFile(WORKSPACE_ZIP, 'w') as zipf:
+        for root, dirs, files in os.walk(PROJECT_ROOT):
+            # Filtrar directorios ignorados in-place
+            dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+            
             for file in files:
                 file_path = Path(root) / file
-                # Mantener estructura relativa dentro del zip
+                # Calcular ruta relativa al root del proyecto
                 arcname = file_path.relative_to(PROJECT_ROOT)
-                if "__pycache__" not in str(arcname):
-                    zipf.write(file_path, arcname)
-        
-        # Agregar requirements.txt
-        zipf.write(PROJECT_ROOT / "requirements.txt", "requirements.txt")
-    print(f"   -> {SRC_ZIP.name} creado ({SRC_ZIP.stat().st_size / 1024:.2f} KB)")
+                
+                # Ignorar archivos específicos si es necesario
+                if file == "kaggle.json": continue 
 
-def upload_dataset(zip_path, title, slug):
-    """Sube o actualiza un dataset en Kaggle."""
-    dataset_dir = BUILD_DIR / slug
+                zipf.write(file_path, arcname)
+                
+    print(f"   -> {WORKSPACE_ZIP.name} creado ({WORKSPACE_ZIP.stat().st_size / 1024 / 1024:.2f} MB)")
+
+def upload_workspace_dataset():
+    """Sube el workspace completo como un dataset."""
+    dataset_dir = BUILD_DIR / DATASET_SLUG
     dataset_dir.mkdir(exist_ok=True)
-    shutil.copy(zip_path, dataset_dir)
+    shutil.copy(WORKSPACE_ZIP, dataset_dir)
     
     # Crear metadata
     meta = {
-        "title": title,
-        "id": f"{KAGGLE_USER}/{slug}",
+        "title": "Fake News Workspace",
+        "id": f"{KAGGLE_USER}/{DATASET_SLUG}",
         "licenses": [{"name": "CC0-1.0"}]
     }
     with open(dataset_dir / "dataset-metadata.json", "w") as f:
         json.dump(meta, f)
     
-    print(f"🚀 Subiendo dataset {slug}...")
-    # Intentar crear, si falla, intentar versionar (actualizar)
-    cmd_create = f"kaggle datasets create -p {dataset_dir} -u"
-    cmd_update = f"kaggle datasets version -p {dataset_dir} -m 'Auto-update from IDE'"
+    print(f"🚀 Subiendo dataset {DATASET_SLUG}...")
     
+    cmd_create = f"kaggle datasets create -p {dataset_dir} -u"
+    cmd_update = f"kaggle datasets version -p {dataset_dir} -m 'Auto-update from IDE' --dir-mode zip"
+    
+    # Intentar crear primero
     result = subprocess.run(cmd_create, shell=True, capture_output=True, text=True)
+    
     if "already exists" in result.stderr or result.returncode != 0:
         print(f"   -> El dataset ya existe, actualizando versión...")
+        # Usamos subprocess.run normal para ver el output de progreso de Kaggle
         subprocess.run(cmd_update, shell=True)
     else:
         print("   -> Dataset creado exitosamente.")
@@ -78,13 +103,13 @@ def upload_dataset(zip_path, title, slug):
 def create_training_kernel():
     print("📝 Generando Kernel de entrenamiento...")
     
-    # Este es el código que correrá en Kaggle
     notebook_content = {
         "cells": [
             {
                 "cell_type": "markdown",
                 "metadata": {},
-                "source": ["# 🚀 Fake News Detection - Auto Training\n", "Generado automáticamente desde VS Code."]
+                "source": ["# 🚀 Fake News Detection - Auto Training (Unified Workspace)\n", 
+                           "Entorno replicado exactamente desde el IDE local."]
             },
             {
                 "cell_type": "code",
@@ -92,44 +117,63 @@ def create_training_kernel():
                 "metadata": {},
                 "outputs": [],
                 "source": [
-                    "# 1. Configurar entorno\n",
+                    "# 1. Restaurar Workspace\n",
                     "import os\n",
-                    "import sys\n",
                     "import shutil\n",
+                    "import sys\n",
                     "\n",
-                    "KAGGLE_INPUT_PATH = '/kaggle/input/fake-news-src'\n",
-                    "print(f'Contenido de {KAGGLE_INPUT_PATH}:', os.listdir(KAGGLE_INPUT_PATH))\n",
+                    "# Ruta donde Kaggle monta el dataset\n",
+                    f"INPUT_DIR = '/kaggle/input/{DATASET_SLUG}'\n",
+                    "WORKING_DIR = '/kaggle/working'\n",
                     "\n",
-                    "# Estrategia de carga robusta: Kaggle a veces descomprime automático, a veces no.\n",
-                    "if os.path.exists(os.path.join(KAGGLE_INPUT_PATH, 'src')):\n",
-                    "    print('📂 Detectado código ya descomprimido. Copiando a /kaggle/working...')\n",
-                    "    shutil.copytree(KAGGLE_INPUT_PATH, '.', dirs_exist_ok=True)\n",
-                    "elif os.path.exists(os.path.join(KAGGLE_INPUT_PATH, 'fake_news_src.zip')):\n",
-                    "    try:\n",
-                    "        print('📦 Detectado ZIP. Intentando descomprimir...')\n",
-                    "        shutil.unpack_archive(os.path.join(KAGGLE_INPUT_PATH, 'fake_news_src.zip'), '.')\n",
-                    "    except Exception as e:\n",
-                    "        print(f'⚠️ Error descomprimiendo ({e}). Intentando copiar como directorio...')\n",
-                    "        shutil.copytree(KAGGLE_INPUT_PATH, '.', dirs_exist_ok=True)\n",
+                    "print('📂 Contenido del input:', os.listdir(INPUT_DIR))\n",
+                    "\n",
+                    "# Copiar todo al directorio de trabajo (para tener permisos de escritura)\n",
+                    "print('� Restaurando estructura del proyecto en /kaggle/working...')\n",
+                    "\n",
+                    "# Kaggle a veces descomprime el zip, a veces no. Manejamos ambos casos.\n",
+                    "zip_path = os.path.join(INPUT_DIR, 'fake_news_workspace.zip')\n",
+                    "if os.path.exists(zip_path):\n",
+                    "    print('   -> Descomprimiendo ZIP maestro...')\n",
+                    "    shutil.unpack_archive(zip_path, WORKING_DIR)\n",
                     "else:\n",
-                    "    print('⚠️ Estructura desconocida, copiando todo recursivamente...')\n",
-                    "    shutil.copytree(KAGGLE_INPUT_PATH, '.', dirs_exist_ok=True)\n",
+                    "    print('   -> Copiando archivos planos...')\n",
+                    "    # Si Kaggle ya lo descomprimió, copiamos recursivamente\n",
+                    "    shutil.copytree(INPUT_DIR, WORKING_DIR, dirs_exist_ok=True)\n",
                     "\n",
-                    "# Instalar dependencias\n",
+                    "print('✅ Estructura restaurada:')\n",
+                    "for root, dirs, files in os.walk(WORKING_DIR):\n",
+                    "    level = root.replace(WORKING_DIR, '').count(os.sep)\n",
+                    "    indent = ' ' * 4 * (level)\n",
+                    "    print(f'{indent}{os.path.basename(root)}/')\n",
+                    "    subindent = ' ' * 4 * (level + 1)\n",
+                    "    # Mostrar solo algunos archivos para no saturar el log\n",
+                    "    for f in files[:5]:\n",
+                    "        print(f'{subindent}{f}')\n",
+                    "    if len(files) > 5:\n",
+                    "        print(f'{subindent}... ({len(files)-5} más)')\n",
+                    "\n",
+                    "# 2. Instalar Dependencias\n",
                     "if os.path.exists('requirements.txt'):\n",
                     "    print('⬇️ Instalando dependencias...')\n",
                     "    !pip install -r requirements.txt -q\n",
                     "else:\n",
-                    "    print('❌ Error CRÍTICO: No se encontró requirements.txt en el directorio de trabajo.')\n",
-                    "    print('Archivos actuales:', os.listdir('.'))\n",
+                    "    print('❌ ALERTA: No se encontró requirements.txt')\n",
                     "\n",
-                    "print('✅ Entorno listo.')"
+                    "# 3. Verificar Datos Procesados\n",
+                    "if os.path.exists('data/processed/train'):\n",
+                    "    print('✅ Datos procesados detectados. Saltando build_hf_datasets.py')\n",
+                    "else:\n",
+                    "    print('⚠️ No hay datos procesados. Ejecutando preprocesamiento...')\n",
+                    "    !PYTHONPATH=. python src/preprocessing/build_hf_datasets.py\n",
+                    "\n",
+                    "print('✅ Entorno listo para entrenar.')"
                 ]
             },
             {
                 "cell_type": "markdown",
                 "metadata": {},
-                "source": ["## 2. Entrenar Modelo Baseline (DistilBERT)\n", "Entrenamiento estándar sin pesos de clase."]
+                "source": ["## 2. Ejecutar Entrenamientos"]
             },
             {
                 "cell_type": "code",
@@ -141,11 +185,6 @@ def create_training_kernel():
                 ]
             },
             {
-                "cell_type": "markdown",
-                "metadata": {},
-                "source": ["## 3. Entrenar Modelo Weighted (DistilBERT + Pesos)\n", "Manejo de desbalance de clases usando pesos en la Loss."]
-            },
-            {
                 "cell_type": "code",
                 "execution_count": None,
                 "metadata": {},
@@ -155,17 +194,11 @@ def create_training_kernel():
                 ]
             },
             {
-                "cell_type": "markdown",
-                "metadata": {},
-                "source": ["## 4. Entrenar Modelo Avanzado (DeBERTa + LoRA)\n", "Modelo estado del arte con adaptación eficiente."]
-            },
-            {
                 "cell_type": "code",
                 "execution_count": None,
                 "metadata": {},
                 "outputs": [],
                 "source": [
-                    "# Usamos PYTHONPATH=. para asegurar que se encuentre el paquete 'src'\n",
                     "!PYTHONPATH=. python src/training/train_deberta_lora.py"
                 ]
             }
@@ -193,7 +226,7 @@ def create_training_kernel():
         "nbformat_minor": 5
     }
     
-    kernel_slug = "fake-news-auto-train"
+    kernel_slug = "fake-news-auto-train-unified"
     kernel_dir = BUILD_DIR / "kernel"
     kernel_dir.mkdir(exist_ok=True)
     
@@ -203,7 +236,7 @@ def create_training_kernel():
     # Metadata del Kernel
     kernel_meta = {
         "id": f"{KAGGLE_USER}/{kernel_slug}",
-        "title": "Fake News Auto Train",
+        "title": "Fake News Auto Train (Unified)",
         "code_file": "train.ipynb",
         "language": "python",
         "kernel_type": "notebook",
@@ -211,8 +244,7 @@ def create_training_kernel():
         "enable_gpu": "true",
         "enable_internet": "true",
         "dataset_sources": [
-            f"{KAGGLE_USER}/fake-news-src",
-            f"{KAGGLE_USER}/fake-news-data" # Asumimos que los datos también están subidos
+            f"{KAGGLE_USER}/{DATASET_SLUG}"
         ],
         "competition_sources": [],
         "kernel_sources": []
@@ -226,22 +258,14 @@ def create_training_kernel():
     print(f"\n✅ Entrenamiento iniciado! Monitorea aquí: https://www.kaggle.com/{KAGGLE_USER}/{kernel_slug}")
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data", action="store_true", help="Subir también la carpeta data/ (tarda más)")
-    args = parser.parse_args()
-
     check_kaggle_auth()
     prepare_build_dir()
     
-    # 1. Subir Código
-    zip_source_code()
-    upload_dataset(SRC_ZIP, "Fake News Source Code", "fake-news-src")
+    # 1. Empaquetar TODO
+    zip_workspace()
     
-    # 2. Subir Datos (Opcional)
-    if args.data:
-        print("📦 Empaquetando datos (esto puede tardar)...")
-        shutil.make_archive(str(BUILD_DIR / "fake_news_data"), 'zip', PROJECT_ROOT / "data")
-        upload_dataset(DATA_ZIP, "Fake News Data", "fake-news-data")
+    # 2. Subir Dataset Único
+    upload_workspace_dataset()
     
     # 3. Lanzar Kernel
     create_training_kernel()

@@ -7,12 +7,13 @@ if ROOT_DIR not in sys.path:
 
 from datasets import Dataset
 from transformers import AutoTokenizer
+from src.config import PROCESSED_DATA_DIR, RAW_DATA_DIR # Importamos configuración centralizada
 from src.preprocessing.clean_text import clean_text
 from src.preprocessing.split_data import split_train_val
 from src.data.load_datasets import load_dataset, normalize_labels
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PROCESSED_DIR = os.path.join(BASE_DIR, "processed")
+
+
 TOKENIZER_NAME = os.environ.get("TOKENIZER_NAME", "microsoft/deberta-v3-base")
 MAX_LENGTH = 512
 
@@ -40,7 +41,8 @@ def to_hf_dataset(df, tokenizer, with_labels=True):
 
 
 def save_dataset(ds, name):
-    out_dir = os.path.join(PROCESSED_DIR, name)
+    # Usamos PROCESSED_DATA_DIR de config.py
+    out_dir = os.path.join(PROCESSED_DATA_DIR, name)
     os.makedirs(out_dir, exist_ok=True)
     ds.save_to_disk(out_dir)
     print(f"✔ Dataset guardado en {out_dir}")
