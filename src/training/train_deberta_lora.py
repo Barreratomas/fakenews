@@ -97,9 +97,11 @@ def main(
         logging_strategy="steps",
         logging_steps=10,
         learning_rate=4e-5,  # Slightly higher for LoRA
-        per_device_train_batch_size=16, # Increased batch size
-        per_device_eval_batch_size=16,
+        per_device_train_batch_size=8, # Increased batch size
+        per_device_eval_batch_size=8,
         num_train_epochs=10, # Increased epochs
+        gradient_accumulation_steps=2,
+        dataloader_num_workers=4,
         weight_decay=0.01,
         load_best_model_at_end=True,
         metric_for_best_model="f1",
