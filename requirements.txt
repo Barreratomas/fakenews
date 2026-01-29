@@ -25,3 +25,4 @@ requests>=2.31.0
 validators>=0.20.0
 tqdm>=4.65.0
 ddgs>=4.0.0
+kaggle>=1.5.16
