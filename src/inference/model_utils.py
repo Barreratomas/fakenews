@@ -26,30 +26,56 @@ def load_text_clf_pipeline(model_dir: Optional[str] = None) -> Tuple[Any, AutoTo
     if _CACHED_CLF is not None and _CACHED_DIR == model_dir:
         return _CACHED_CLF, _CACHED_TOKENIZER, _CACHED_MODEL
     
+    # Intentar cargar el modelo solicitado primero
+    try:
+        return _load_specific_model(model_dir)
+    except Exception as e:
+        logger.error(f"FALLO CRÍTICO cargando modelo principal {model_dir}: {e}")
+        
+        # Estrategia de Fallback (Respaldo)
+        from src.config import WEIGHTED_MODEL_DIR, BASELINE_MODEL_DIR
+        
+        # 1. Intentar Weighted
+        if str(model_dir) != str(WEIGHTED_MODEL_DIR) and os.path.exists(WEIGHTED_MODEL_DIR):
+            logger.info(f"FALLBACK: Intentando cargar modelo Weighted desde {WEIGHTED_MODEL_DIR}...")
+            try:
+                return _load_specific_model(str(WEIGHTED_MODEL_DIR))
+            except Exception as e2:
+                logger.error(f"FALLBACK Weighted falló: {e2}")
+        
+        # 2. Intentar Baseline
+        if str(model_dir) != str(BASELINE_MODEL_DIR) and os.path.exists(BASELINE_MODEL_DIR):
+            logger.info(f"FALLBACK: Intentando cargar modelo Baseline desde {BASELINE_MODEL_DIR}...")
+            try:
+                return _load_specific_model(str(BASELINE_MODEL_DIR))
+            except Exception as e3:
+                logger.error(f"FALLBACK Baseline falló: {e3}")
+
+        # Si todo falla, re-lanzar error original
+        raise e
+
+def _load_specific_model(model_dir: str):
+    global _CACHED_DIR, _CACHED_CLF, _CACHED_TOKENIZER, _CACHED_MODEL
+    
     logger.info(f"Cargando modelo desde: {model_dir}")
     
     # Detectar LoRA (adapter_config.json)
     adapter_cfg = os.path.join(model_dir, "adapter_config.json")
     if os.path.isfile(adapter_cfg):
         logger.info("Detectado adaptador LoRA.")
-        try:
-            with open(adapter_cfg, "r", encoding="utf-8") as f:
-                cfg = json.load(f)
-        except Exception as e:
-            logger.warning(f"Error leyendo adapter_config.json: {e}")
-            cfg = {}
+        with open(adapter_cfg, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
             
         base_name = cfg.get("base_model_name_or_path", DEFAULT_BASE_MODEL_NAME)
         logger.info(f"Cargando modelo base: {base_name}")
         
-        # Intentar cargar tokenizer localmente primero (para evitar descargas)
+        # Intentar cargar tokenizer localmente primero
         try:
             logger.info(f"Intentando cargar tokenizer desde {model_dir}")
             tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=True)
         except Exception:
             logger.warning(f"No se encontró tokenizer en {model_dir}, cargando desde base: {base_name}")
             try:
-                # Intentar cargar tokenizer específico (ej. DebertaV2)
                 from transformers import DebertaV2TokenizerFast
                 tokenizer = DebertaV2TokenizerFast.from_pretrained(base_name, use_fast=True)
             except Exception:
@@ -57,13 +83,8 @@ def load_text_clf_pipeline(model_dir: Optional[str] = None) -> Tuple[Any, AutoTo
             
         model = AutoModelForSequenceClassification.from_pretrained(base_name, num_labels=2)
         
-        try:
-            logger.info("Aplicando pesos LoRA...")
-            model = PeftModel.from_pretrained(model, model_dir)
-            # Merge opcional si se quisiera optimizar inferencia, pero PeftModel funciona bien
-        except Exception as e:
-            logger.error(f"Error cargando PeftModel: {e}")
-            pass
+        logger.info("Aplicando pesos LoRA...")
+        model = PeftModel.from_pretrained(model, model_dir)
             
     else:
         # Modelo estándar (full fine-tuning o base)
@@ -74,11 +95,7 @@ def load_text_clf_pipeline(model_dir: Optional[str] = None) -> Tuple[Any, AutoTo
             logger.warning(f"No se pudo cargar tokenizer de {model_dir}, usando base.")
             tokenizer = AutoTokenizer.from_pretrained(DEFAULT_BASE_MODEL_NAME)
             
-        try:
-            model = AutoModelForSequenceClassification.from_pretrained(model_dir)
-        except Exception:
-            logger.warning(f"No se pudo cargar modelo de {model_dir}, usando base inicializado.")
-            model = AutoModelForSequenceClassification.from_pretrained(DEFAULT_BASE_MODEL_NAME, num_labels=2)
+        model = AutoModelForSequenceClassification.from_pretrained(model_dir)
 
     # Crear pipeline
     clf = pipeline(
@@ -89,13 +106,13 @@ def load_text_clf_pipeline(model_dir: Optional[str] = None) -> Tuple[Any, AutoTo
         truncation=True
     )
     
-    # Actualizar cache
+    # Actualizar cache solo si es exitoso
     _CACHED_DIR = model_dir
     _CACHED_CLF = clf
     _CACHED_TOKENIZER = tokenizer
     _CACHED_MODEL = model
     
-    logger.info("Pipeline de clasificación cargado exitosamente.")
+    logger.info(f"Pipeline cargado exitosamente desde {model_dir}")
     return _CACHED_CLF, _CACHED_TOKENIZER, _CACHED_MODEL
 
 def label_names_from_config(model: AutoModelForSequenceClassification) -> List[str]:
