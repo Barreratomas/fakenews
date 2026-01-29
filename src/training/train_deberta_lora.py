@@ -102,19 +102,22 @@ def main(
         save_strategy="epoch",
         logging_strategy="steps",
         logging_steps=10,
-        learning_rate=5e-5,  # Reduced from 1e-4 for better stability
-        per_device_train_batch_size=8, # Increased batch size
+        learning_rate=1e-4,  # Aumentado para LoRA (estándar 1e-4 a 3e-4)
+        per_device_train_batch_size=8,
         per_device_eval_batch_size=8,
-        num_train_epochs=10, # Increased epochs
+        num_train_epochs=10,
         gradient_accumulation_steps=2,
         dataloader_num_workers=4,
-        weight_decay=0.1,  # Strong regularization
-        warmup_ratio=0.15,  # Increased for smoother start
-        lr_scheduler_type="cosine",  # Optimal convergence
+        weight_decay=0.01,  # Reducido ligeramente para LoRA
+        warmup_ratio=0.1,
+        lr_scheduler_type="cosine",
         load_best_model_at_end=True,
         metric_for_best_model="f1",
-        save_total_limit=2, # Keep only best 2 checkpoints
+        save_total_limit=2,
         push_to_hub=False,
+        fp16=torch.cuda.is_available(),  # Mixed precision para velocidad y memoria
+        seed=42,  # Reproducibilidad
+        report_to="none",  # Desactivar wandb explícitamente
     )
 
     trainer = WeightedTrainer(
