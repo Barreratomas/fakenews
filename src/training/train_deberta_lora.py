@@ -101,14 +101,14 @@ def main(
         save_strategy="epoch",
         logging_strategy="steps",
         logging_steps=10,
-        learning_rate=1e-4,  # LoRA needs higher LR than full fine-tuning
+        learning_rate=5e-5,  # Reduced from 1e-4 for better stability
         per_device_train_batch_size=8, # Increased batch size
         per_device_eval_batch_size=8,
         num_train_epochs=10, # Increased epochs
         gradient_accumulation_steps=2,
         dataloader_num_workers=4,
         weight_decay=0.1,  # Strong regularization
-        warmup_ratio=0.1,  # Smooth start
+        warmup_ratio=0.15,  # Increased for smoother start
         lr_scheduler_type="cosine",  # Optimal convergence
         load_best_model_at_end=True,
         metric_for_best_model="f1",
