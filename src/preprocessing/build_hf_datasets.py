@@ -62,7 +62,8 @@ def main():
     print(f"⬇ Eliminados {len_before - len(train_df)} duplicados exactos en train.csv")
 
     train_df["label"] = normalize_labels(train_df["label"])
-    train_df = train_df.dropna(subset=["label"]).astype({"label": int})
+    train_df = train_df.dropna(subset=["label"])
+    train_df = train_df[train_df["label"].isin([0, 1])].astype({"label": int})
 
     tr_df, val_df = split_train_val(train_df)
 

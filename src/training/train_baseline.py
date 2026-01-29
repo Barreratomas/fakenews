@@ -40,6 +40,11 @@ def main(
     train_ds = load_from_disk(str(train_dir))
     val_ds = load_from_disk(str(val_dir))
 
+    label_col = "label" if "label" in train_ds.features else "labels"
+    invalid = [l for l in train_ds[label_col] if l not in (0, 1)]
+    if invalid:
+        raise ValueError(f"Etiquetas fuera de rango detectadas: {set(invalid)}. Se requieren valores 0/1.")
+
     train_ds.set_format(type="torch")
     val_ds.set_format(type="torch")
 

@@ -45,12 +45,17 @@ def main(
     train_ds = load_from_disk(str(train_dir))
     val_ds = load_from_disk(str(val_dir))
 
+    label_col = "label" if "label" in train_ds.features else "labels"
+    invalid = [l for l in train_ds[label_col] if l not in (0, 1)]
+    if invalid:
+        raise ValueError(f"Etiquetas fuera de rango detectadas: {set(invalid)}. Se requieren valores 0/1.")
+
     train_ds.set_format(type="torch")
     val_ds.set_format(type="torch")
 
     # Calcular pesos
     logger.info("Calculando pesos de clases...")
-    train_labels = train_ds["label"].numpy()
+    train_labels = np.array(train_ds[label_col])
     class_weights = compute_class_weights(train_labels, num_labels=num_labels)
     logger.info(f"Pesos calculados: {class_weights}")
 

@@ -46,11 +46,16 @@ def main(
         logger.error(f"No se encontraron datos en {data_dir}. Ejecuta el preprocesamiento primero.")
         sys.exit(1)
 
+    label_col = "label" if "label" in train_ds.features else "labels"
+    invalid = [l for l in train_ds[label_col] if l not in (0, 1)]
+    if invalid:
+        raise ValueError(f"Etiquetas fuera de rango detectadas: {set(invalid)}. Se requieren valores 0/1.")
+
     train_ds.set_format(type="torch")
     val_ds.set_format(type="torch")
 
     logger.info("Calculando pesos de clase...")
-    class_weights = compute_class_weights(train_ds["labels"], num_labels=num_labels)
+    class_weights = compute_class_weights(np.array(train_ds[label_col]), num_labels=num_labels)
     logger.info(f"Pesos de clase: {class_weights}")
 
     logger.info(f"Cargando tokenizer: {model_name}")

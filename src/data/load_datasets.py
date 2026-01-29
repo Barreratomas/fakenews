@@ -34,7 +34,8 @@ def normalize_labels(series):
         if v in {"0", "false", "fake", "falso"}:
             return 0
         try:
-            return int(v)
+            iv = int(v)
+            return iv if iv in (0, 1) else None
         except Exception:
             return None
 
