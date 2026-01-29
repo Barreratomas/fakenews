@@ -70,6 +70,13 @@ def main(
     model.config.id2label = {0: "FAKE", 1: "REAL"}
     model.config.label2id = {"FAKE": 0, "REAL": 1}
 
+    # Forzar uso de GPU si está disponible
+    if torch.cuda.is_available():
+        model = model.cuda()
+        logger.info(f"Modelo movido a GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        logger.warning("GPU no detectada. Entrenando en CPU.")
+
     logger.info("Aplicando LoRA...")
     lora_config = LoraConfig(
         r=8,

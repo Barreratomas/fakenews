@@ -52,6 +52,14 @@ def main(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
 
+    # Forzar uso de GPU si está disponible
+    import torch
+    if torch.cuda.is_available():
+        model = model.cuda()
+        logger.info(f"Modelo movido a GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        logger.warning("GPU no detectada. Entrenando en CPU.")
+
     try:
         training_args = TrainingArguments(
             output_dir=str(output_dir),
@@ -59,9 +67,9 @@ def main(
             save_strategy="epoch",
             logging_strategy="steps",
             logging_steps=100,
-            per_device_train_batch_size=16,
-            per_device_eval_batch_size=16,
-            num_train_epochs=num_train_epochs,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
+        num_train_epochs=num_train_epochs,
             weight_decay=0.01,
             load_best_model_at_end=True,
             metric_for_best_model="f1",

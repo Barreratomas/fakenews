@@ -62,6 +62,13 @@ def main(
     logger.info(f"Cargando modelo base: {model_name}")
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
 
+    # Forzar uso de GPU si está disponible
+    if torch.cuda.is_available():
+        model = model.cuda()
+        logger.info(f"Modelo movido a GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        logger.warning("GPU no detectada. Entrenando en CPU.")
+
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         eval_strategy="epoch",
