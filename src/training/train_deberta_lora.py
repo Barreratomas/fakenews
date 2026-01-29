@@ -20,6 +20,7 @@ from peft import LoraConfig, get_peft_model, TaskType
 
 from src.config import (
     TRAIN_DATA_DIR,
+    VAL_DATA_DIR,
     MODELS_DIR,
     DEFAULT_BASE_MODEL_NAME
 )
@@ -30,7 +31,7 @@ from src.training.utils.trainer_utils import WeightedTrainer
 logger = get_logger(__name__)
 
 def main(
-    data_dir: Path = TRAIN_DATA_DIR, 
+    data_dir: Path = None, 
     output_dir: Path = MODELS_DIR / "deberta_lora", 
     model_name: str = "microsoft/deberta-v3-base", 
     num_labels: int = 2, 
@@ -38,12 +39,16 @@ def main(
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    logger.info(f"Cargando datos desde {data_dir}")
+    # Lógica corregida para coincidir con train_weighted.py
+    train_dir = Path(data_dir) / "train" if data_dir else TRAIN_DATA_DIR
+    val_dir = Path(data_dir) / "val" if data_dir else VAL_DATA_DIR
+
+    logger.info(f"Cargando datos desde {train_dir} y {val_dir}")
     try:
-        train_ds = load_from_disk(str(data_dir / "train"))
-        val_ds = load_from_disk(str(data_dir / "val"))
+        train_ds = load_from_disk(str(train_dir))
+        val_ds = load_from_disk(str(val_dir))
     except FileNotFoundError:
-        logger.error(f"No se encontraron datos en {data_dir}. Ejecuta el preprocesamiento primero.")
+        logger.error(f"No se encontraron datos en {train_dir} o {val_dir}. Ejecuta el preprocesamiento primero.")
         sys.exit(1)
 
     label_col = "label" if "label" in train_ds.features else "labels"
