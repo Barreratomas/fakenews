@@ -42,7 +42,7 @@ DEFAULT_MODEL_DIR = get_default_model_dir()
 # ==========================================
 # Configuración de Modelos (HuggingFace)
 # ==========================================
-DEFAULT_BASE_MODEL_NAME = os.environ.get("MODEL_NAME", "roberta-base")
+DEFAULT_BASE_MODEL_NAME = os.environ.get("MODEL_NAME", "microsoft/deberta-v3-base")
 SENTENCE_TRANSFORMER_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 # ==========================================
