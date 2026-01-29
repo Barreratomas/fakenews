@@ -1,6 +1,10 @@
 import os
 import sys
 import numpy as np
+
+# Deshabilitar WandB para evitar bloqueos en Kaggle
+os.environ["WANDB_DISABLED"] = "true"
+
 import torch
 from pathlib import Path
 from datasets import load_from_disk

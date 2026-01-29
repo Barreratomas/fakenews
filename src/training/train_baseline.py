@@ -1,7 +1,11 @@
-from pathlib import Path
 import os
 import json
 import numpy as np
+
+# Deshabilitar WandB para evitar bloqueos en Kaggle
+os.environ["WANDB_DISABLED"] = "true"
+
+from pathlib import Path
 from datasets import load_from_disk
 from transformers import AutoModelForSequenceClassification, TrainingArguments, Trainer, AutoTokenizer, EarlyStoppingCallback
 from src.training.utils.metrics import compute_metrics
