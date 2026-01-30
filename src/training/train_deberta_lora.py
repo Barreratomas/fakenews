@@ -128,8 +128,11 @@ def main(
     model.print_trainable_parameters()
 
     # === 5. Argumentos de Entrenamiento Dinámicos ===
-    # Ajustar gradient accumulation según batch size para mantener estabilidad
-    grad_acc_steps = 1 if per_device_train_batch_size >= 16 else 2
+    # Ajustar gradient accumulation para mantener un batch efectivo total de ~16
+    # Si batch=8 -> steps=2 (8*2=16)
+    # Si batch=4 -> steps=4 (4*4=16)
+    target_batch_size = 16
+    grad_acc_steps = max(1, target_batch_size // per_device_train_batch_size)
 
     training_args = TrainingArguments(
         output_dir=str(output_dir),
@@ -139,7 +142,7 @@ def main(
         logging_steps=50,
         learning_rate=learning_rate,
         per_device_train_batch_size=per_device_train_batch_size,
-        per_device_eval_batch_size=32,
+        per_device_eval_batch_size=16, # Reducido de 32 a 16 para ahorrar VRAM
         num_train_epochs=num_train_epochs,
         gradient_accumulation_steps=grad_acc_steps,
         dataloader_num_workers=4,
@@ -152,6 +155,7 @@ def main(
         push_to_hub=False,
         fp16=torch.cuda.is_available(),
         group_by_length=True,
+        gradient_checkpointing=True, # CRÍTICO: Ahorra mucha memoria VRAM a costa de un poco de velocidad
         seed=42,
         report_to="none",
     )

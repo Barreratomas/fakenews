@@ -82,21 +82,26 @@ def objective(trial):
         model = model.cuda()
 
     # 4. Argumentos de Entrenamiento
+    # Ajustar gradient accumulation para batch efectivo constante de 16
+    target_batch = 16
+    grad_acc_steps = max(1, target_batch // per_device_train_batch_size)
+
     training_args = TrainingArguments(
         output_dir=str(MODELS_DIR / f"optuna_trial_{trial.number}"),
         eval_strategy="epoch",
         save_strategy="epoch",
         learning_rate=learning_rate,
         per_device_train_batch_size=per_device_train_batch_size,
-        per_device_eval_batch_size=16,
+        per_device_eval_batch_size=16, # Reducido de 32 a 16
         num_train_epochs=3, # Pocas épocas para la búsqueda
         weight_decay=weight_decay,
-        gradient_accumulation_steps=1 if per_device_train_batch_size == 16 else 2,
+        gradient_accumulation_steps=grad_acc_steps,
         load_best_model_at_end=True,
         metric_for_best_model="f1",
         save_total_limit=1,
         fp16=torch.cuda.is_available(),
         group_by_length=True,
+        gradient_checkpointing=True, # CRÍTICO para evitar OOM durante optimización
         report_to="none",
         disable_tqdm=True 
     )
