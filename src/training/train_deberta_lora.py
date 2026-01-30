@@ -60,14 +60,17 @@ def main(
     if optimize:
         logger.info(f"Modo optimización activado (--optimize). Ejecutando {n_trials} pruebas...")
         best_params = run_hyperparameter_optimization(n_trials=n_trials, save_path=params_path)
-    else:
+    elif params_path.exists():
         # Intentar cargar si existen
         loaded = load_best_params(params_path)
         if loaded:
             best_params = loaded
             logger.info(f"Usando hiperparámetros guardados: {best_params}")
-        else:
-            logger.info("No se encontraron hiperparámetros guardados ni se solicitó optimización. Usando valores por defecto.")
+    else:
+        # No existen y no se especificó --optimize -> Optimización Automática
+        logger.warning("⚠️ No se encontraron hiperparámetros guardados (best_hyperparameters.json).")
+        logger.info(">>> Iniciando optimización automática (5 trials) para encontrar la mejor configuración...")
+        best_params = run_hyperparameter_optimization(n_trials=5, save_path=params_path)
 
     # Valores por defecto (si no están en best_params)
     learning_rate = best_params.get("learning_rate", 1e-4)
