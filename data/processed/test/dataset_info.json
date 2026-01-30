@@ -15,6 +15,10 @@
         "_type": "Value"
       },
       "_type": "List"
+    },
+    "labels": {
+      "dtype": "int64",
+      "_type": "Value"
     }
   },
   "homepage": "",

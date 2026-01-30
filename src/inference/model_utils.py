@@ -31,27 +31,6 @@ def load_text_clf_pipeline(model_dir: Optional[str] = None) -> Tuple[Any, AutoTo
         return _load_specific_model(model_dir)
     except Exception as e:
         logger.error(f"FALLO CRÍTICO cargando modelo principal {model_dir}: {e}")
-        
-        # Estrategia de Fallback (Respaldo)
-        from src.config import WEIGHTED_MODEL_DIR, BASELINE_MODEL_DIR
-        
-        # 1. Intentar Weighted
-        if str(model_dir) != str(WEIGHTED_MODEL_DIR) and os.path.exists(WEIGHTED_MODEL_DIR):
-            logger.info(f"FALLBACK: Intentando cargar modelo Weighted desde {WEIGHTED_MODEL_DIR}...")
-            try:
-                return _load_specific_model(str(WEIGHTED_MODEL_DIR))
-            except Exception as e2:
-                logger.error(f"FALLBACK Weighted falló: {e2}")
-        
-        # 2. Intentar Baseline
-        if str(model_dir) != str(BASELINE_MODEL_DIR) and os.path.exists(BASELINE_MODEL_DIR):
-            logger.info(f"FALLBACK: Intentando cargar modelo Baseline desde {BASELINE_MODEL_DIR}...")
-            try:
-                return _load_specific_model(str(BASELINE_MODEL_DIR))
-            except Exception as e3:
-                logger.error(f"FALLBACK Baseline falló: {e3}")
-
-        # Si todo falla, re-lanzar error original
         raise e
 
 def _load_specific_model(model_dir: str):

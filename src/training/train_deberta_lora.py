@@ -33,7 +33,7 @@ logger = get_logger(__name__)
 def main(
     data_dir: Path = None, 
     output_dir: Path = MODELS_DIR / "deberta_lora", 
-    model_name: str = "microsoft/deberta-v3-base", 
+    model_name: str = "microsoft/mdeberta-v3-base", 
     num_labels: int = 2, 
     num_train_epochs: int = 3
 ):

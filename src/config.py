@@ -16,33 +16,19 @@ RAW_DATA_DIR = DATA_DIR / "raw"
 PROCESSED_DATA_DIR = DATA_DIR / "processed"
 TRAIN_DATA_DIR = PROCESSED_DATA_DIR / "train"
 VAL_DATA_DIR = PROCESSED_DATA_DIR / "val"
+TEST_DATA_DIR = PROCESSED_DATA_DIR / "test"
 
 # ==========================================
 # Directorios de Modelos
 # ==========================================
-BASELINE_MODEL_DIR = MODELS_DIR / "baseline"
-WEIGHTED_MODEL_DIR = MODELS_DIR / "weighted"
+# Solo usamos DeBERTa + LoRA
 DEBERTA_LORA_DIR = MODELS_DIR / "deberta_lora"
-
-# Lógica inteligente para seleccionar el mejor modelo disponible por defecto
-def get_default_model_dir():
-    env_model = os.environ.get("MODEL_DIR")
-    if env_model:
-        return Path(env_model)
-    
-    if DEBERTA_LORA_DIR.exists() and (DEBERTA_LORA_DIR / "adapter_config.json").exists():
-        return DEBERTA_LORA_DIR
-    elif WEIGHTED_MODEL_DIR.exists() and (WEIGHTED_MODEL_DIR / "config.json").exists():
-        return WEIGHTED_MODEL_DIR
-    else:
-        return BASELINE_MODEL_DIR
-
-DEFAULT_MODEL_DIR = get_default_model_dir()
+DEFAULT_MODEL_DIR = DEBERTA_LORA_DIR
 
 # ==========================================
 # Configuración de Modelos (HuggingFace)
 # ==========================================
-DEFAULT_BASE_MODEL_NAME = os.environ.get("MODEL_NAME", "microsoft/deberta-v3-base")
+DEFAULT_BASE_MODEL_NAME = os.environ.get("MODEL_NAME", "microsoft/mdeberta-v3-base")
 SENTENCE_TRANSFORMER_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 # ==========================================

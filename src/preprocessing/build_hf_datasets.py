@@ -8,11 +8,10 @@ if ROOT_DIR not in sys.path:
 from datasets import Dataset
 from transformers import AutoTokenizer
 from src.preprocessing.clean_text import clean_text
-from src.preprocessing.split_data import split_train_val
-from src.data.load_datasets import load_dataset, normalize_labels
-from src.config import PROCESSED_DATA_DIR
+from src.data.load_datasets import load_raw_data
+from src.config import PROCESSED_DATA_DIR, RAW_DATA_DIR, DEFAULT_BASE_MODEL_NAME
 
-TOKENIZER_NAME = os.environ.get("TOKENIZER_NAME", "microsoft/deberta-v3-base")
+TOKENIZER_NAME = os.environ.get("TOKENIZER_NAME", DEFAULT_BASE_MODEL_NAME)
 MAX_LENGTH = 512
 
 
@@ -49,43 +48,54 @@ def main():
     print(f"Cargando tokenizer: {TOKENIZER_NAME}...")
     tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME)
 
-    # ---- TRAIN / VAL ----
-    print("Procesando dataset de entrenamiento...")
-    train_df = load_dataset("train.csv")
+    # 1. Cargar Datos Crudos Unificados (Fake + True)
+    df = load_raw_data()
+    print(f"Total registros cargados: {len(df)}")
+
+    # 2. Cargar Datos Aumentados (si existen)
+    aug_path = os.path.join(RAW_DATA_DIR, "augmented_train.csv")
+    if os.path.exists(aug_path):
+        print(f"Cargando datos aumentados desde {aug_path}...")
+        try:
+            aug_df = pd.read_csv(aug_path)
+            # Asegurar columnas
+            if "text" in aug_df.columns and "label" in aug_df.columns:
+                df = pd.concat([df, aug_df[["text", "label"]]], ignore_index=True)
+                print(f"✔ Añadidos {len(aug_df)} registros aumentados.")
+            else:
+                print("⚠ augmented_train.csv no tiene columnas 'text' y 'label'. Ignorando.")
+        except Exception as e:
+            print(f"⚠ Error cargando aumentados: {e}")
+
+    # 3. Limpieza
+    print("Limpiando textos...")
+    df["text"] = df["text"].map(clean_text)
     
-    # Limpieza
-    train_df["text"] = train_df["text"].map(clean_text)
+    # 4. Deduplicación
+    len_before = len(df)
+    df = df.drop_duplicates(subset=["text"])
+    print(f"⬇ Eliminados {len_before - len(df)} duplicados exactos.")
+
+    # 5. Split (80% Train, 10% Val, 10% Test)
+    # Primero separamos Test (10%)
+    from sklearn.model_selection import train_test_split
     
-    # Deduplicación
-    len_before = len(train_df)
-    train_df = train_df.drop_duplicates(subset=["text"])
-    print(f"⬇ Eliminados {len_before - len(train_df)} duplicados exactos en train.csv")
+    # Train+Val (90%) / Test (10%)
+    train_val_df, test_df = train_test_split(df, test_size=0.1, random_state=42, stratify=df["label"])
+    
+    # Train (89% de 90% ≈ 80% total) / Val (11% de 90% ≈ 10% total)
+    # 0.111 * 0.9 ≈ 0.10
+    train_df, val_df = train_test_split(train_val_df, test_size=0.1111, random_state=42, stratify=train_val_df["label"])
 
-    train_df["label"] = normalize_labels(train_df["label"])
-    train_df = train_df.dropna(subset=["label"])
-    train_df = train_df[train_df["label"].isin([0, 1])].astype({"label": int})
+    print(f"Distribución Final: Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
 
-    tr_df, val_df = split_train_val(train_df)
-
-    save_dataset(to_hf_dataset(tr_df, tokenizer), "train")
+    # 6. Guardar Datasets
+    print("Guardando datasets procesados...")
+    save_dataset(to_hf_dataset(train_df, tokenizer), "train")
     save_dataset(to_hf_dataset(val_df, tokenizer), "val")
+    save_dataset(to_hf_dataset(test_df, tokenizer), "test")
 
-    # ---- TEST ----
-    test_df = load_dataset("test.csv")
-    test_df["text"] = test_df["text"].map(clean_text)
-    save_dataset(to_hf_dataset(test_df, tokenizer, with_labels=False), "test")
-
-    # ---- ONLY FAKES ----
-    onlyfakes = load_dataset("onlyfakes1000.csv")
-    onlyfakes["text"] = onlyfakes["text"].map(clean_text)
-    onlyfakes["label"] = 0
-    save_dataset(to_hf_dataset(onlyfakes, tokenizer), "onlyfakes1000")
-
-    # ---- ONLY TRUE ----
-    onlytrue = load_dataset("onlytrue1000.csv")
-    onlytrue["text"] = onlytrue["text"].map(clean_text)
-    onlytrue["label"] = 1
-    save_dataset(to_hf_dataset(onlytrue, tokenizer), "onlytrue1000")
+    print("✔ Proceso completado exitosamente.")
 
 
 if __name__ == "__main__":
