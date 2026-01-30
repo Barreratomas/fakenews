@@ -1,5 +1,7 @@
 import os
 import sys
+import argparse
+import json
 import numpy as np
 
 # Deshabilitar WandB para evitar bloqueos en Kaggle
@@ -14,7 +16,8 @@ from transformers import (
     Trainer,
     EarlyStoppingCallback,
     AutoTokenizer,
-    DebertaV2Tokenizer
+    DebertaV2Tokenizer,
+    DataCollatorWithPadding
 )
 from peft import LoraConfig, get_peft_model, TaskType
 
@@ -27,19 +30,54 @@ from src.config import (
 from src.utils.logger import get_logger
 from src.training.utils.metrics import compute_metrics, compute_class_weights
 from src.training.utils.trainer_utils import WeightedTrainer
+# Importamos la función de optimización (lazy import dentro de main si es necesario, pero aquí está bien)
+from src.training.optimize_hyperparameters import run_hyperparameter_optimization
 
 logger = get_logger(__name__)
+
+def load_best_params(params_path: Path):
+    if params_path.exists():
+        logger.info(f"Cargando mejores hiperparámetros desde {params_path}")
+        with open(params_path, "r") as f:
+            return json.load(f)
+    return None
 
 def main(
     data_dir: Path = None, 
     output_dir: Path = MODELS_DIR / "deberta_lora", 
     model_name: str = "microsoft/mdeberta-v3-base", 
     num_labels: int = 2, 
-    num_train_epochs: int = 3
+    num_train_epochs: int = 10,
+    optimize: bool = True,
+    n_trials: int = 10
 ):
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Lógica corregida para coincidir con train_weighted.py
+    # === 1. Gestión de Hiperparámetros ===
+    params_path = MODELS_DIR / "best_hyperparameters.json"
+    best_params = {}
+
+    if optimize:
+        logger.info(f"Modo optimización activado (--optimize). Ejecutando {n_trials} pruebas...")
+        best_params = run_hyperparameter_optimization(n_trials=n_trials, save_path=params_path)
+    else:
+        # Intentar cargar si existen
+        loaded = load_best_params(params_path)
+        if loaded:
+            best_params = loaded
+            logger.info(f"Usando hiperparámetros guardados: {best_params}")
+        else:
+            logger.info("No se encontraron hiperparámetros guardados ni se solicitó optimización. Usando valores por defecto.")
+
+    # Valores por defecto (si no están en best_params)
+    learning_rate = best_params.get("learning_rate", 1e-4)
+    per_device_train_batch_size = best_params.get("per_device_train_batch_size", 16)
+    weight_decay = best_params.get("weight_decay", 0.01)
+    lora_r = best_params.get("lora_r", 16)
+    lora_alpha = best_params.get("lora_alpha", 32)
+    lora_dropout = best_params.get("lora_dropout", 0.1)
+
+    # === 2. Carga de Datos ===
     train_dir = Path(data_dir) / "train" if data_dir else TRAIN_DATA_DIR
     val_dir = Path(data_dir) / "val" if data_dir else VAL_DATA_DIR
 
@@ -52,72 +90,70 @@ def main(
         sys.exit(1)
 
     label_col = "label" if "label" in train_ds.features else "labels"
-    invalid = [l for l in train_ds[label_col] if l not in (0, 1)]
-    if invalid:
-        raise ValueError(f"Etiquetas fuera de rango detectadas: {set(invalid)}. Se requieren valores 0/1.")
-
     train_ds.set_format(type="torch")
     val_ds.set_format(type="torch")
 
     logger.info("Calculando pesos de clase...")
     class_weights = compute_class_weights(np.array(train_ds[label_col]), num_labels=num_labels)
-    logger.info(f"Pesos de clase: {class_weights}")
-
+    
+    # === 3. Tokenizer y Modelo ===
     logger.info(f"Cargando tokenizer: {model_name}")
     try:
         tokenizer = DebertaV2Tokenizer.from_pretrained(model_name)
     except Exception as e:
         logger.warning(f"Error cargando DebertaV2Tokenizer: {e}. Intentando AutoTokenizer.")
         tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
+    
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
     logger.info(f"Cargando modelo base: {model_name}")
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
-    model.config.id2label = {0: "FAKE", 1: "REAL"}
-    model.config.label2id = {"FAKE": 0, "REAL": 1}
-
-    # Forzar uso de GPU si está disponible
+    
     if torch.cuda.is_available():
         model = model.cuda()
         logger.info(f"Modelo movido a GPU: {torch.cuda.get_device_name(0)}")
-    else:
-        logger.warning("GPU no detectada. Entrenando en CPU.")
 
-    logger.info("Aplicando LoRA optimizado...")
+    # === 4. Configuración LoRA Dinámica ===
+    logger.info(f"Aplicando LoRA con r={lora_r}, alpha={lora_alpha}, dropout={lora_dropout}...")
     lora_config = LoraConfig(
-        r=16,  # Aumentado para mayor capacidad
-        lora_alpha=32,
-        lora_dropout=0.1,
+        r=lora_r,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
         bias="none",
         task_type=TaskType.SEQ_CLS,
-        # Targeteamos todas las capas lineales (Atención + FFN) para acercarnos al full fine-tuning
         target_modules=["query_proj", "key_proj", "value_proj", "dense"],
         modules_to_save=["pooler", "classifier"],
     )
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
+    # === 5. Argumentos de Entrenamiento Dinámicos ===
+    # Ajustar gradient accumulation según batch size para mantener estabilidad
+    grad_acc_steps = 1 if per_device_train_batch_size >= 16 else 2
+
     training_args = TrainingArguments(
         output_dir=str(output_dir),
         eval_strategy="epoch",
         save_strategy="epoch",
         logging_strategy="steps",
-        logging_steps=10,
-        learning_rate=1e-4,  # Aumentado para LoRA (estándar 1e-4 a 3e-4)
-        per_device_train_batch_size=8,
-        per_device_eval_batch_size=8,
-        num_train_epochs=10,
-        gradient_accumulation_steps=2,
+        logging_steps=50,
+        learning_rate=learning_rate,
+        per_device_train_batch_size=per_device_train_batch_size,
+        per_device_eval_batch_size=32,
+        num_train_epochs=num_train_epochs,
+        gradient_accumulation_steps=grad_acc_steps,
         dataloader_num_workers=4,
-        weight_decay=0.01,  # Reducido ligeramente para LoRA
+        weight_decay=weight_decay,
         warmup_ratio=0.1,
         lr_scheduler_type="cosine",
         load_best_model_at_end=True,
         metric_for_best_model="f1",
         save_total_limit=2,
         push_to_hub=False,
-        fp16=torch.cuda.is_available(),  # Mixed precision para velocidad y memoria
-        seed=42,  # Reproducibilidad
-        report_to="none",  # Desactivar wandb explícitamente
+        fp16=torch.cuda.is_available(),
+        group_by_length=True,
+        seed=42,
+        report_to="none",
     )
 
     trainer = WeightedTrainer(
@@ -128,10 +164,11 @@ def main(
         compute_metrics=compute_metrics,
         class_weights=class_weights,
         num_labels=num_labels,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)] # Stop if no improvement for 3 epochs
+        data_collator=data_collator,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)]
     )
 
-    logger.info("Iniciando entrenamiento...")
+    logger.info("Iniciando entrenamiento final...")
     trainer.train()
     
     logger.info(f"Guardando modelo en {output_dir}")
@@ -139,4 +176,15 @@ def main(
     tokenizer.save_pretrained(str(output_dir))
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Entrenar DeBERTa LoRA con opción de optimización")
+    parser.add_argument("--optimize", action="store_true", help="Ejecutar optimización de hiperparámetros antes de entrenar")
+    parser.add_argument("--n_trials", type=int, default=10, help="Número de pruebas para Optuna (si optimize=True)")
+    parser.add_argument("--epochs", type=int, default=10, help="Número de épocas de entrenamiento")
+    
+    args = parser.parse_args()
+    
+    main(
+        optimize=args.optimize,
+        n_trials=args.n_trials,
+        num_train_epochs=args.epochs
+    )

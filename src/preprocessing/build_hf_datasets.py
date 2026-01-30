@@ -21,7 +21,6 @@ def to_hf_dataset(df, tokenizer, with_labels=True):
 
     enc = tokenizer(
         texts,
-        padding="max_length",
         truncation=True,
         max_length=MAX_LENGTH
     )
@@ -52,31 +51,18 @@ def main():
     df = load_raw_data()
     print(f"Total registros cargados: {len(df)}")
 
-    # 2. Cargar Datos Aumentados (si existen)
-    aug_path = os.path.join(RAW_DATA_DIR, "augmented_train.csv")
-    if os.path.exists(aug_path):
-        print(f"Cargando datos aumentados desde {aug_path}...")
-        try:
-            aug_df = pd.read_csv(aug_path)
-            # Asegurar columnas
-            if "text" in aug_df.columns and "label" in aug_df.columns:
-                df = pd.concat([df, aug_df[["text", "label"]]], ignore_index=True)
-                print(f"✔ Añadidos {len(aug_df)} registros aumentados.")
-            else:
-                print("⚠ augmented_train.csv no tiene columnas 'text' y 'label'. Ignorando.")
-        except Exception as e:
-            print(f"⚠ Error cargando aumentados: {e}")
+    
 
-    # 3. Limpieza
+    # 2. Limpieza
     print("Limpiando textos...")
     df["text"] = df["text"].map(clean_text)
     
-    # 4. Deduplicación
+    # 3. Deduplicación
     len_before = len(df)
     df = df.drop_duplicates(subset=["text"])
     print(f"⬇ Eliminados {len_before - len(df)} duplicados exactos.")
 
-    # 5. Split (80% Train, 10% Val, 10% Test)
+    # 4. Split (80% Train, 10% Val, 10% Test)
     # Primero separamos Test (10%)
     from sklearn.model_selection import train_test_split
     
