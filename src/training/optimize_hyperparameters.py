@@ -13,7 +13,8 @@ from transformers import (
     EarlyStoppingCallback,
     AutoTokenizer,
     DebertaV2Tokenizer,
-    DataCollatorWithPadding
+    DataCollatorWithPadding,
+    TrainerCallback
 )
 from peft import LoraConfig, get_peft_model, TaskType
 from src.config import (
@@ -30,6 +31,14 @@ logger = get_logger(__name__)
 
 # Desactivar wandb para la búsqueda
 os.environ["WANDB_DISABLED"] = "true"
+
+class PrinterCallback(TrainerCallback):
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        # Filtramos logs internos si es necesario, pero imprimimos lo principal
+        if logs and state.is_local_process_zero:
+            # logs suele contener loss, learning_rate, epoch, etc.
+            # Imprimimos en una sola línea para no saturar, pero visible
+            print(f"    👉 [Epoch {logs.get('epoch', '?'):.2f} | Step {state.global_step}] {logs}")
 
 def objective(trial):
     print(f"🟢 [Trial {trial.number}] Iniciando prueba de hiperparámetros...")
@@ -49,9 +58,16 @@ def objective(trial):
     val_ds = load_from_disk(str(VAL_DATA_DIR))
     print(f"📊 [Trial {trial.number}] Datos cargados. Train: {len(train_ds)}, Val: {len(val_ds)}")
     
-    # Para acelerar la búsqueda, usamos un subset
-    # train_ds = train_ds.select(range(min(len(train_ds), 2000))) 
-    # val_ds = val_ds.select(range(min(len(val_ds), 500)))
+    # Para acelerar la búsqueda, usamos un subset (activado para eficiencia)
+    # Usamos 10% o max 4000 muestras para que sea rápido
+    subset_size_train = min(len(train_ds), 4000)
+    subset_size_val = min(len(val_ds), 500)
+    
+    logger.info(f"✂ Usando subset para optimización: {subset_size_train} train, {subset_size_val} val")
+    print(f"✂ Usando subset para optimización: {subset_size_train} train, {subset_size_val} val")
+    
+    train_ds = train_ds.shuffle(seed=42).select(range(subset_size_train))
+    val_ds = val_ds.shuffle(seed=42).select(range(subset_size_val))
 
     train_ds.set_format(type="torch")
     val_ds.set_format(type="torch")
@@ -108,7 +124,9 @@ def objective(trial):
         group_by_length=True,
         gradient_checkpointing=True, # CRÍTICO para evitar OOM durante optimización
         report_to="none",
-        disable_tqdm=True 
+        disable_tqdm=True,
+        logging_strategy="steps",
+        logging_steps=100
     )
 
     trainer = WeightedTrainer(
@@ -120,7 +138,7 @@ def objective(trial):
         class_weights=class_weights,
         num_labels=2,
         data_collator=data_collator,
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=1)] 
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=1), PrinterCallback()] 
     )
 
     logger.info(f"🚀 [Trial {trial.number}] Comenzando entrenamiento...")
