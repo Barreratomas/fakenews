@@ -118,11 +118,18 @@ def objective(trial):
         callbacks=[EarlyStoppingCallback(early_stopping_patience=1)] 
     )
 
-    trainer.train()
+    logger.info(f"🚀 [Trial {trial.number}] Comenzando entrenamiento...")
+    try:
+        trainer.train()
+        metrics = trainer.evaluate()
+        f1_score = metrics["eval_f1"]
+        logger.info(f"✅ [Trial {trial.number}] Finalizado. F1 Score: {f1_score:.4f}")
+        return f1_score
+    except Exception as e:
+        logger.error(f"❌ [Trial {trial.number}] Falló con error: {str(e)}")
+        # Retornamos un valor muy bajo para que Optuna descarte esta configuración
+        return 0.0
     
-    metrics = trainer.evaluate()
-    return metrics["eval_f1"]
-
 def run_hyperparameter_optimization(n_trials=10, save_path=None):
     """
     Ejecuta la optimización de hiperparámetros y retorna los mejores parámetros.
