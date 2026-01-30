@@ -84,40 +84,40 @@ def main(
     train_dir = Path(data_dir) / "train" if data_dir else TRAIN_DATA_DIR
     val_dir = Path(data_dir) / "val" if data_dir else VAL_DATA_DIR
 
-    logger.info(f"Cargando datos desde {train_dir} y {val_dir}")
+    print(f"Cargando datos desde {train_dir} y {val_dir}")
     try:
         train_ds = load_from_disk(str(train_dir))
         val_ds = load_from_disk(str(val_dir))
     except FileNotFoundError:
-        logger.error(f"No se encontraron datos en {train_dir} o {val_dir}. Ejecuta el preprocesamiento primero.")
+        print(f"No se encontraron datos en {train_dir} o {val_dir}. Ejecuta el preprocesamiento primero.")
         sys.exit(1)
 
     label_col = "label" if "label" in train_ds.features else "labels"
     train_ds.set_format(type="torch")
     val_ds.set_format(type="torch")
 
-    logger.info("Calculando pesos de clase...")
+    print("Calculando pesos de clase...")
     class_weights = compute_class_weights(np.array(train_ds[label_col]), num_labels=num_labels)
     
     # === 3. Tokenizer y Modelo ===
-    logger.info(f"Cargando tokenizer: {model_name}")
+    print(f"Cargando tokenizer: {model_name}")
     try:
         tokenizer = DebertaV2Tokenizer.from_pretrained(model_name)
     except Exception as e:
-        logger.warning(f"Error cargando DebertaV2Tokenizer: {e}. Intentando AutoTokenizer.")
+        print(f"Error cargando DebertaV2Tokenizer: {e}. Intentando AutoTokenizer.")
         tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
     
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
-    logger.info(f"Cargando modelo base: {model_name}")
+    print(f"Cargando modelo base: {model_name}")
     model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
     
     if torch.cuda.is_available():
         model = model.cuda()
-        logger.info(f"Modelo movido a GPU: {torch.cuda.get_device_name(0)}")
+        print(f"Modelo movido a GPU: {torch.cuda.get_device_name(0)}")
 
     # === 4. Configuración LoRA Dinámica ===
-    logger.info(f"Aplicando LoRA con r={lora_r}, alpha={lora_alpha}, dropout={lora_dropout}...")
+    print(f"Aplicando LoRA con r={lora_r}, alpha={lora_alpha}, dropout={lora_dropout}...")
     lora_config = LoraConfig(
         r=lora_r,
         lora_alpha=lora_alpha,

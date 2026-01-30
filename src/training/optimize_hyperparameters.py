@@ -32,17 +32,22 @@ logger = get_logger(__name__)
 os.environ["WANDB_DISABLED"] = "true"
 
 def objective(trial):
+    print(f"🟢 [Trial {trial.number}] Iniciando prueba de hiperparámetros...")
+    
     # 1. Definir Espacio de Búsqueda
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 5e-4, log=True)
-    per_device_train_batch_size = trial.suggest_categorical("per_device_train_batch_size", [8, 16])
+    per_device_train_batch_size = trial.suggest_categorical("per_device_train_batch_size", [4, 8])
     weight_decay = trial.suggest_float("weight_decay", 0.0, 0.3)
     lora_r = trial.suggest_categorical("lora_r", [8, 16, 32])
     lora_alpha = trial.suggest_categorical("lora_alpha", [16, 32, 64])
     lora_dropout = trial.suggest_float("lora_dropout", 0.05, 0.2)
     
+    print(f"📋 [Trial {trial.number}] Configuración: LR={learning_rate:.2e}, Batch={per_device_train_batch_size}, LoRA R={lora_r}")
+    
     # 2. Cargar Datos
     train_ds = load_from_disk(str(TRAIN_DATA_DIR))
     val_ds = load_from_disk(str(VAL_DATA_DIR))
+    print(f"📊 [Trial {trial.number}] Datos cargados. Train: {len(train_ds)}, Val: {len(val_ds)}")
     
     # Para acelerar la búsqueda, usamos un subset
     # train_ds = train_ds.select(range(min(len(train_ds), 2000))) 
