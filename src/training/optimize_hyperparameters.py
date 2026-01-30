@@ -140,6 +140,7 @@ def run_hyperparameter_optimization(n_trials=10, save_path=None):
     Ejecuta la optimización de hiperparámetros y retorna los mejores parámetros.
     """
     logger.info("Iniciando Optimización de Hiperparámetros con Optuna...")
+    print("Iniciando Optimización de Hiperparámetros con Optuna...")
     
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=n_trials)
@@ -147,6 +148,9 @@ def run_hyperparameter_optimization(n_trials=10, save_path=None):
     logger.info("Búsqueda completada.")
     logger.info(f"Mejores parámetros: {study.best_params}")
     logger.info(f"Mejor F1 Score: {study.best_value}")
+    print("Búsqueda completada.")
+    print(f"Mejores parámetros: {study.best_params}")
+    print(f"Mejor F1 Score: {study.best_value}")
     
     if save_path:
         with open(save_path, "w") as f:

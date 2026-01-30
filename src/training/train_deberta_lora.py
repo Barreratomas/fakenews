@@ -58,18 +58,18 @@ def main(
     best_params = {}
 
     if optimize:
-        logger.info(f"Modo optimización activado (--optimize). Ejecutando {n_trials} pruebas...")
+        print(f"Modo optimización activado (--optimize). Ejecutando {n_trials} pruebas...")
         best_params = run_hyperparameter_optimization(n_trials=n_trials, save_path=params_path)
     elif params_path.exists():
         # Intentar cargar si existen
         loaded = load_best_params(params_path)
         if loaded:
             best_params = loaded
-            logger.info(f"Usando hiperparámetros guardados: {best_params}")
+            print(f"Usando hiperparámetros guardados: {best_params}")
     else:
         # No existen y no se especificó --optimize -> Optimización Automática
-        logger.warning("⚠️ No se encontraron hiperparámetros guardados (best_hyperparameters.json).")
-        logger.info(">>> Iniciando optimización automática (5 trials) para encontrar la mejor configuración...")
+        print("⚠️ No se encontraron hiperparámetros guardados (best_hyperparameters.json).")
+        print(">>> Iniciando optimización automática (5 trials) para encontrar la mejor configuración...")
         best_params = run_hyperparameter_optimization(n_trials=5, save_path=params_path)
 
     # Valores por defecto (si no están en best_params)
@@ -176,9 +176,11 @@ def main(
     )
 
     logger.info("Iniciando entrenamiento final...")
+    print("Iniciando entrenamiento final...")
     trainer.train()
     
     logger.info(f"Guardando modelo en {output_dir}")
+    print(f"Guardando modelo en {output_dir}")
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
 
