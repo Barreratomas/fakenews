@@ -37,12 +37,39 @@ def main(
     if not data_dir.exists():
         logger.error(f"El directorio de datos no existe: {data_dir}")
         sys.exit(1)
+        
+    logger.info(f"📂 Verificando directorio del modelo: {model_dir}")
+    logger.info(f"   Ruta absoluta: {model_dir.resolve()}")
+
+    if model_dir.exists():
+        logger.info(f"   Contenido de {model_dir}:")
+        files = list(model_dir.iterdir())
+        if not files:
+            logger.warning("   ⚠ El directorio está vacío.")
+        for f in files:
+            logger.info(f"   - {f.name} ({f.stat().st_size / 1024 / 1024:.2f} MB)")
+    else:
+        logger.error(f"❌ El directorio {model_dir} NO existe.")
+        sys.exit(1)
 
     # Validar archivos críticos del modelo antes de intentar cargar
     adapter_config_path = model_dir / "adapter_config.json"
     adapter_model_path = model_dir / "adapter_model.safetensors"
     adapter_model_bin = model_dir / "adapter_model.bin"
     
+    logger.info("🔍 Buscando archivos de configuración y pesos...")
+    if adapter_config_path.exists():
+        logger.info(f"   ✔ Encontrado: {adapter_config_path.name}")
+    else:
+        logger.error(f"   ❌ Falta: {adapter_config_path.name}")
+
+    if adapter_model_path.exists():
+        logger.info(f"   ✔ Encontrado: {adapter_model_path.name}")
+    elif adapter_model_bin.exists():
+        logger.info(f"   ✔ Encontrado: {adapter_model_bin.name}")
+    else:
+        logger.error(f"   ❌ Falta: adapter_model.safetensors O adapter_model.bin")
+
     if not adapter_config_path.exists():
         logger.error(f"❌ Falta adapter_config.json en {model_dir}")
         logger.error("Asegúrate de haber entrenado el modelo o de tener los archivos en la ruta correcta.")
@@ -50,9 +77,7 @@ def main(
         
     if not adapter_model_path.exists() and not adapter_model_bin.exists():
         logger.error(f"❌ Falta adapter_model.safetensors (o .bin) en {model_dir}")
-        logger.info(f"Contenido de {model_dir}:")
-        for f in model_dir.iterdir():
-            logger.info(f" - {f.name} ({f.stat().st_size / 1024 / 1024:.2f} MB)")
+        # Ya listamos el contenido arriba, así que salimos
         sys.exit(1)
 
     # 1. Cargar Configuración del Adaptador para saber el modelo base
