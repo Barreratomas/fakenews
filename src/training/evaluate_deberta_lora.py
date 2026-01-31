@@ -38,6 +38,20 @@ def main(
         logger.error(f"El directorio de datos no existe: {data_dir}")
         sys.exit(1)
 
+    # Validar archivos críticos del modelo antes de intentar cargar
+    adapter_config_path = model_dir / "adapter_config.json"
+    adapter_model_path = model_dir / "adapter_model.safetensors"
+    adapter_model_bin = model_dir / "adapter_model.bin"
+    
+    if not adapter_config_path.exists():
+        logger.error(f"❌ Falta adapter_config.json en {model_dir}")
+        logger.error("Asegúrate de haber entrenado el modelo o de tener los archivos en la ruta correcta.")
+        sys.exit(1)
+        
+    if not adapter_model_path.exists() and not adapter_model_bin.exists():
+        logger.error(f"❌ Falta adapter_model.safetensors (o .bin) en {model_dir}")
+        sys.exit(1)
+
     # 1. Cargar Configuración del Adaptador para saber el modelo base
     try:
         peft_config = PeftConfig.from_pretrained(str(model_dir))
