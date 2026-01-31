@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, List, Any
+from typing import Optional, Tuple, List, Any, Dict, cast
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 import os
 import json
@@ -105,3 +105,34 @@ def label_names_from_config(model: AutoModelForSequenceClassification) -> List[s
             return ["FAKE", "REAL"]
         return labels
     return ["FAKE", "REAL"]
+
+def _label_map(idx: int) -> str:
+    return f"LABEL_{idx}"
+
+def model_predict(text: str, model_dir: Optional[str] = None) -> Dict:
+    logger.info("🔎 DEBUG: Entrando a model_predict...")
+    clf, tokenizer, model = load_text_clf_pipeline(model_dir)
+    
+    # Debugging Tokenization
+    logger.info("🔎 DEBUG: Tokenizando texto para inspección...")
+    tokens = tokenizer(text, truncation=True, max_length=512, return_tensors="pt")
+    input_ids = tokens["input_ids"][0].tolist()
+    decoded_tokens = tokenizer.convert_ids_to_tokens(input_ids)
+    logger.info(f"🔎 DEBUG: Primeros 20 tokens: {decoded_tokens[:20]}")
+    logger.info(f"🔎 DEBUG: Total tokens generados: {len(input_ids)}")
+
+    logger.info("🔎 DEBUG: Ejecutando inferencia en pipeline...")
+    raw_scores = clf(text)[0]
+    logger.info(f"🔎 DEBUG: Scores crudos del pipeline: {raw_scores}")
+
+    scores = cast(List[Dict[str, float]], raw_scores)
+    idx = int(max(range(len(scores)), key=lambda i: scores[i]["score"]))
+    conf = float(scores[idx]["score"])
+    
+    class_names = label_names_from_config(model)
+    logger.info(f"🔎 DEBUG: Nombres de clases detectados en config: {class_names}")
+    
+    label = class_names[idx] if 0 <= idx < len(class_names) else _label_map(idx)
+    logger.info(f"🔎 DEBUG: Etiqueta final seleccionada: {label} (idx={idx}) con confianza {conf:.4f}")
+    
+    return {"label": label, "confidence": round(conf, 4)}

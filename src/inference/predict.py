@@ -16,12 +16,30 @@ def _label_map(idx: int) -> str:
 
 
 def model_predict(text: str, model_dir: Optional[str] = None) -> Dict:
+    logger.info("🔎 DEBUG: Entrando a model_predict...")
     clf, tokenizer, model = load_text_clf_pipeline(model_dir)
-    scores = cast(List[Dict[str, float]], clf(text)[0])
+
+    # Debugging Tokenization
+    logger.info("🔎 DEBUG: Tokenizando texto para inspección...")
+    tokens = tokenizer(text, truncation=True, max_length=512, return_tensors="pt")
+    input_ids = tokens["input_ids"][0].tolist()
+    decoded_tokens = tokenizer.convert_ids_to_tokens(input_ids)
+    logger.info(f"🔎 DEBUG: Primeros 20 tokens: {decoded_tokens[:20]}")
+    logger.info(f"🔎 DEBUG: Total tokens generados: {len(input_ids)}")
+
+    logger.info("🔎 DEBUG: Ejecutando inferencia en pipeline...")
+    raw_scores = clf(text)[0]
+    logger.info(f"🔎 DEBUG: Scores crudos del pipeline: {raw_scores}")
+
+    scores = cast(List[Dict[str, float]], raw_scores)
     idx = int(max(range(len(scores)), key=lambda i: scores[i]["score"]))
     conf = float(scores[idx]["score"])
     class_names = label_names_from_config(model)
+    logger.info(f"🔎 DEBUG: Nombres de clases detectados en config: {class_names}")
+
     label = class_names[idx] if 0 <= idx < len(class_names) else _label_map(idx)
+    logger.info(f"🔎 DEBUG: Etiqueta final seleccionada: {label} (idx={idx}) con confianza {conf:.4f}")
+
     return {"label": label, "confidence": round(conf, 4)}
 
 
@@ -64,24 +82,30 @@ def predict(input_data: Dict, method: str = "lime", model_dir: Optional[str] = N
     content = str(input_data.get("content", "")).strip()
     extracted_title = ""
 
-    logger.info(f"Iniciando predicción. Tipo: {content_type}")
-
+    logger.info(f"🔎 DEBUG: Iniciando predicción para contenido de tipo '{content_type}'")
+    
     if content_type == "url":
         try:
+            logger.info(f"🔎 DEBUG: Extrayendo artículo desde URL: {content}")
             extracted = extract_article_from_url(content)
         except ArticleExtractionError as e:
-            logger.error(f"Error de extracción ({e.stage}): {e}")
+            logger.error(f"❌ DEBUG: Error de extracción ({e.stage}): {e}")
             return {"type": content_type, "content": content, "error_stage": e.stage, "error": str(e)}
         except Exception as e:
-            logger.error(f"Error desconocido en extracción: {e}")
+            logger.error(f"❌ DEBUG: Error desconocido en extracción: {e}")
             return {"type": content_type, "content": content, "error_stage": "unknown", "error": str(e)}
         extracted_title = extracted.get("title", "")
         text = extracted.get("text", "")
+        logger.info(f"🔎 DEBUG: Artículo extraído exitosamente. Título: '{extracted_title}' | Longitud texto: {len(text)} caracteres")
+        if len(text) < 200:
+             logger.warning(f"⚠️ DEBUG: Texto extraído muy corto: '{text}'")
     else:
         text = content
+        logger.info(f"🔎 DEBUG: Procesando texto directo. Longitud: {len(text)} caracteres")
+
     # Validar texto procesable
     if not text or not text.strip():
-        logger.warning("Texto vacío o no procesable")
+        logger.warning("❌ DEBUG: Texto vacío o no procesable")
         return {
             "type": content_type,
             "content": content,
@@ -89,8 +113,15 @@ def predict(input_data: Dict, method: str = "lime", model_dir: Optional[str] = N
             "error": "Texto vacío o no procesable"
         }
 
+    logger.info("🔎 DEBUG: Limpiando texto...")
     text = clean_text(text)
+    logger.info(f"🔎 DEBUG: Texto limpio (primeros 100 chars): '{text[:100]}...'")
+
+    logger.info("🔎 DEBUG: Llamando a model_predict...")
     result = model_predict(text, model_dir=model_dir)
+    logger.info(f"🔎 DEBUG: Resultado crudo de model_predict: {result}")
+
+    logger.info(f"🔎 DEBUG: Generando explicación (método: {method})...")
     explanation = generate_explanation(text, method=method, model_dir=model_dir)
     out = {
         "label": result["label"],

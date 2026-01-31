@@ -30,8 +30,6 @@ from src.config import (
 from src.utils.logger import get_logger
 from src.training.utils.metrics import compute_metrics, compute_class_weights
 from src.training.utils.trainer_utils import WeightedTrainer
-# Importamos la función de optimización (lazy import dentro de main si es necesario, pero aquí está bien)
-from src.training.optimize_hyperparameters import run_hyperparameter_optimization
 
 logger = get_logger(__name__)
 
@@ -57,21 +55,14 @@ def main(
     params_path = MODELS_DIR / "best_hyperparameters.json"
     best_params = {}
 
-    if optimize:
-        print(f"Modo optimización activado (--optimize). Ejecutando {n_trials} pruebas...")
-        best_params = run_hyperparameter_optimization(n_trials=n_trials, save_path=params_path)
-    elif params_path.exists():
+   
+    if params_path.exists():
         # Intentar cargar si existen
         loaded = load_best_params(params_path)
         if loaded:
             best_params = loaded
             print(f"Usando hiperparámetros guardados: {best_params}")
-    else:
-        # No existen y no se especificó --optimize -> Optimización Automática
-        print("⚠️ No se encontraron hiperparámetros guardados (best_hyperparameters.json).")
-        print(">>> Iniciando optimización automática (5 trials) para encontrar la mejor configuración...")
-        best_params = run_hyperparameter_optimization(n_trials=5, save_path=params_path)
-
+    
     # Valores por defecto (si no están en best_params)
     learning_rate = best_params.get("learning_rate", 1e-4)
     per_device_train_batch_size = best_params.get("per_device_train_batch_size", 16)
@@ -79,6 +70,16 @@ def main(
     lora_r = best_params.get("lora_r", 16)
     lora_alpha = best_params.get("lora_alpha", 32)
     lora_dropout = best_params.get("lora_dropout", 0.1)
+
+    # CRÍTICO: Si Optuna optimizó epochs, usar ese valor para evitar mismatch
+    if "num_train_epochs" in best_params:
+        optimized_epochs = int(best_params["num_train_epochs"])
+        if optimized_epochs != num_train_epochs:
+            logger.info(f"🔄 Sobrescribiendo epochs ({num_train_epochs}) con valor optimizado: {optimized_epochs}")
+            print(f"🔄 Sobrescribiendo epochs ({num_train_epochs}) con valor optimizado: {optimized_epochs}")
+            num_train_epochs = optimized_epochs
+    elif num_train_epochs > 5:
+        logger.warning(f"⚠️ CUIDADO: Usando {num_train_epochs} épocas. Si usa parámetros optimizados para menos épocas, puede causar colapso.")
 
     # === 2. Carga de Datos ===
     train_dir = Path(data_dir) / "train" if data_dir else TRAIN_DATA_DIR
@@ -115,6 +116,8 @@ def main(
     if torch.cuda.is_available():
         model = model.cuda()
         print(f"Modelo movido a GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        logger.warning("GPU no detectada. El entrenamiento será extremadamente lento en CPU.")
 
     # === 4. Configuración LoRA Dinámica ===
     print(f"Aplicando LoRA con r={lora_r}, alpha={lora_alpha}, dropout={lora_dropout}...")
@@ -157,8 +160,8 @@ def main(
         save_total_limit=2,
         push_to_hub=False,
         fp16=torch.cuda.is_available(),
-        group_by_length=True,
-        gradient_checkpointing=True, # CRÍTICO: Ahorra mucha memoria VRAM a costa de un poco de velocidad
+        # group_by_length=True,  # DESHABILITADO: Puede causar inestabilidad en datasets pequeños/desbalanceados
+        gradient_checkpointing=True, 
         seed=42,
         report_to="none",
     )
@@ -183,6 +186,31 @@ def main(
     print(f"Guardando modelo en {output_dir}")
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
+
+    # === 6. Evaluación Final en Test Set ===
+    logger.info("Ejecutando evaluación final en el conjunto de TEST...")
+    print("\n--- Evaluación Final en Test Set ---")
+    
+    # Load test dataset if available
+    test_dir = Path(data_dir) / "test" if data_dir else None
+    if test_dir and test_dir.exists():
+        test_ds = load_from_disk(str(test_dir))
+        test_ds.set_format(type="torch")
+        test_results = trainer.evaluate(test_ds)
+    else:
+        logger.warning("Test dataset not found. Skipping final evaluation.")
+        test_results = {}
+    
+    print(f"\n📊 RESULTADOS FINALES (TEST SET):")
+    print(f"   F1 Score: {test_results['eval_f1']:.4f}")
+    print(f"   Accuracy: {test_results['eval_accuracy']:.4f}")
+    print(f"   Loss:     {test_results['eval_loss']:.4f}")
+    
+    logger.info(f"Resultados Test: {test_results}")
+
+    with open(output_dir / "test_results.json", "w") as f:
+        json.dump(test_results, f, indent=4)
+    print(f"✔ Resultados guardados en {output_dir}/test_results.json")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Entrenar DeBERTa LoRA con opción de optimización")

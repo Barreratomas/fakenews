@@ -220,8 +220,7 @@ class FactChecker:
         prompt = (
             f"Context:\n{context_block}\n\n"
             f"Claim: {claim[:600]}\n\n"
-            "Task: Based ONLY on the context above, explain if the claim is supported or contradicted. "
-            "If the context is irrelevant, say 'Not enough information'."
+            "Task: Is the claim supported by the context? Answer with 'SUPPORTED', 'CONTRADICTED', or 'NOT ENOUGH INFO' followed by a brief explanation."
         )
         
         # Parámetros para reducir repetición

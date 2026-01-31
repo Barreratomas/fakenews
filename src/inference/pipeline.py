@@ -51,16 +51,23 @@ def run_inference(input_type: str, content: str) -> Dict[str, Any]:
         }
 
     # 3️⃣ RAG (Fact-Checking Asistido)
-    try:
-        logger.info("Ejecutando Fact-Checking (RAG)...")
-        rag_result = rag_fact_check(text)
-    except Exception as e:
-        logger.error(f"Error crítico en RAG: {e}")
-        # Enforce mandatory RAG: Fail the entire inference if RAG fails
-        return {
-            "error_stage": "rag_error",
-            "error": str(e)
-        }
+    # RAG DESHABILITADO POR SOLICITUD DEL USUARIO
+    logger.info("RAG deshabilitado para pruebas aisladas del modelo.")
+    rag_result = {
+        "analysis": "RAG deshabilitado manualmente.",
+        "sources": [],
+        "analysis_type": "disabled"
+    }
+    # try:
+    #     logger.info("Ejecutando Fact-Checking (RAG)...")
+    #     rag_result = rag_fact_check(text)
+    # except Exception as e:
+    #     logger.error(f"Error crítico en RAG: {e}")
+    #     # Enforce mandatory RAG: Fail the entire inference if RAG fails
+    #     return {
+    #         "error_stage": "rag_error",
+    #         "error": str(e)
+    #     }
 
     # Mapeo a la respuesta final
     # Corregido: claves coinciden con rag_pipeline.py ('analysis', 'sources')

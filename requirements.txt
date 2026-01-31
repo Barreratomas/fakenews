@@ -25,4 +25,5 @@ lxml>=4.9.0
 requests>=2.31.0
 validators>=0.20.0
 tqdm>=4.65.0
-ddgs>=4.0.0
+duckduckgo-search>=4.0.0
+h2>=4.0.0
