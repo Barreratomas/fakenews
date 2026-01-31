@@ -20,7 +20,6 @@ from transformers import (
     DataCollatorWithPadding
 )
 from peft import LoraConfig, get_peft_model, TaskType
-
 from src.config import (
     TRAIN_DATA_DIR,
     VAL_DATA_DIR,
@@ -187,30 +186,7 @@ def main(
     trainer.save_model(str(output_dir))
     tokenizer.save_pretrained(str(output_dir))
 
-    # === 6. Evaluación Final en Test Set ===
-    logger.info("Ejecutando evaluación final en el conjunto de TEST...")
-    print("\n--- Evaluación Final en Test Set ---")
-    
-    # Load test dataset if available
-    test_dir = Path(data_dir) / "test" if data_dir else None
-    if test_dir and test_dir.exists():
-        test_ds = load_from_disk(str(test_dir))
-        test_ds.set_format(type="torch")
-        test_results = trainer.evaluate(test_ds)
-    else:
-        logger.warning("Test dataset not found. Skipping final evaluation.")
-        test_results = {}
-    
-    print(f"\n📊 RESULTADOS FINALES (TEST SET):")
-    print(f"   F1 Score: {test_results['eval_f1']:.4f}")
-    print(f"   Accuracy: {test_results['eval_accuracy']:.4f}")
-    print(f"   Loss:     {test_results['eval_loss']:.4f}")
-    
-    logger.info(f"Resultados Test: {test_results}")
 
-    with open(output_dir / "test_results.json", "w") as f:
-        json.dump(test_results, f, indent=4)
-    print(f"✔ Resultados guardados en {output_dir}/test_results.json")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Entrenar DeBERTa LoRA con opción de optimización")
