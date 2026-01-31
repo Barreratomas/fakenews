@@ -50,6 +50,9 @@ def main(
         
     if not adapter_model_path.exists() and not adapter_model_bin.exists():
         logger.error(f"❌ Falta adapter_model.safetensors (o .bin) en {model_dir}")
+        logger.info(f"Contenido de {model_dir}:")
+        for f in model_dir.iterdir():
+            logger.info(f" - {f.name} ({f.stat().st_size / 1024 / 1024:.2f} MB)")
         sys.exit(1)
 
     # 1. Cargar Configuración del Adaptador para saber el modelo base
