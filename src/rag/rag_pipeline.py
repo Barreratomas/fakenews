@@ -15,8 +15,11 @@ from src.config import (
     RAG_METADATA_PATH, 
     RAG_INFO_PATH, 
     SENTENCE_TRANSFORMER_NAME,
-    RAW_DATA_DIR,
-    RAG_SOURCE
+    RAG_LLM_NAME,
+    RAG_TOP_K,
+    RAG_GEN_PARAMS,
+    RAG_PROMPT_TEMPLATE,
+    TOKENIZER_MAX_LENGTH
 )
 from src.utils.logger import get_logger
 
@@ -30,11 +33,11 @@ class WebRetriever:
     def __init__(self):
         self.ddgs = DDGS()
 
-    def query(self, text: str, top_k: int = 5) -> List[Dict]:
+    def query(self, text: str, top_k: int = RAG_TOP_K) -> List[Dict]:
         results = []
         try:
             logger.info(f"Buscando en web: {text[:50]}...")
-            # duckduckgo-search returns list of dicts with keys: title, href, body
+            # duckduckgo-search devuelve una lista de diccionarios con claves: title, href, body
             # Nota: DDGS.text devuelve un generador o lista dependiendo de la versión, forzamos lista
             gen = self.ddgs.text(text, max_results=top_k)
             search_results = list(gen)
@@ -52,7 +55,6 @@ class WebRetriever:
                 logger.warning("DuckDuckGo no devolvió resultados.")
         except Exception as e:
             logger.error(f"Error en búsqueda web DuckDuckGo: {e}")
-            print(f"DEBUG ERROR DDGS: {e}") # Debug temporal
             raise e
             
         return results
@@ -63,15 +65,23 @@ class RagIndex:
         index_dir: Optional[str] = None,
         model_name: str = SENTENCE_TRANSFORMER_NAME
     ):
-        # Si se pasa index_dir, se usa; si no, se usa el default de config
-        self.index_dir = Path(index_dir) if index_dir else RAG_INDEX_DIR
-        self.index_path = self.index_dir / "faiss.index"
-        self.meta_path = self.index_dir / "metadata.json"
-        self.info_path = self.index_dir / "index_info.json"
         self.model_name = model_name
         self.model: Optional[SentenceTransformer] = None
         self.index: Optional[faiss.IndexFlatIP] = None
         self.metadata: List[Dict] = []
+
+        # Si se pasa index_dir, se construyen rutas dinámicas
+        if index_dir:
+            self.index_dir = Path(index_dir)
+            self.index_path = self.index_dir / "faiss.index"
+            self.meta_path = self.index_dir / "metadata.json"
+            self.info_path = self.index_dir / "index_info.json"
+        else:
+            # Si no, usamos las rutas definidas en config
+            self.index_dir = RAG_INDEX_DIR
+            self.index_path = RAG_INDEX_PATH
+            self.meta_path = RAG_METADATA_PATH
+            self.info_path = RAG_INFO_PATH
 
     def _ensure_model(self):
         if self.model is None:
@@ -100,7 +110,7 @@ class RagIndex:
             texts.extend(col.tolist())
             sources.extend([Path(p).name] * len(col))
 
-        # dedupe
+
         unique = {}
         for t, s in zip(texts, sources):
             if t not in unique:
@@ -182,7 +192,7 @@ class FactChecker:
 
     def _ensure_llm(self):
         if self.llm_pipeline is None:
-            model_name = "google/flan-t5-base"
+            model_name = RAG_LLM_NAME
             logger.info(f"Cargando LLM para FactChecker: {model_name}")
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
             self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
@@ -190,7 +200,7 @@ class FactChecker:
                 "text2text-generation", 
                 model=self.model, 
                 tokenizer=self.tokenizer,
-                max_length=512
+                max_length=TOKENIZER_MAX_LENGTH
             )
 
     def check(self, claim: str) -> Dict:
@@ -200,7 +210,7 @@ class FactChecker:
         3. Si hay contexto, usa LLM para verificar.
         """
         # 1. Retrieval
-        retrieved = self.rag.query(claim, top_k=3)
+        retrieved = self.rag.query(claim, top_k=RAG_TOP_K)
         if not retrieved:
             return {
                 "analysis": "No se encontró información relevante en internet.",
@@ -217,25 +227,25 @@ class FactChecker:
         self._ensure_llm()
         assert self.llm_pipeline is not None
         
-        prompt = (
-            f"Context:\n{context_block}\n\n"
-            f"Claim: {claim[:600]}\n\n"
-            "Task: Is the claim supported by the context? Answer with 'SUPPORTED', 'CONTRADICTED', or 'NOT ENOUGH INFO' followed by a brief explanation."
-        )
+        prompt = RAG_PROMPT_TEMPLATE.format(context=context_block, claim=claim[:800])
         
         # Parámetros para reducir repetición
-        out = self.llm_pipeline(
-            prompt, 
-            max_length=200, 
-            do_sample=False,
-            num_beams=4,
-            no_repeat_ngram_size=3,
-            repetition_penalty=1.2
-        )
+        out = self.llm_pipeline(prompt, **RAG_GEN_PARAMS)
         analysis = out[0]["generated_text"]
+        
+        # Parsear veredicto explícito basado en el prompt
+        # El prompt instruye devolver: CONTRADICTED, SUPPORTED, o NOT ENOUGH INFO
+        analysis_lower = analysis.lower()
+        if "contradicted" in analysis_lower:
+            verdict = "FAKE"
+        elif "supported" in analysis_lower:
+            verdict = "REAL"
+        else:
+            verdict = "UNCERTAIN"
         
         return {
             "analysis": analysis,
+            "verdict": verdict,
             "sources": retrieved,
             "analysis_type": "llm_rag_web"
         }

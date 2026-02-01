@@ -1,18 +1,26 @@
 import os
 import sys
+from pathlib import Path
 
-ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
+# Add project root to sys.path if not present
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.append(str(project_root))
 
 from datasets import Dataset
 from transformers import AutoTokenizer
+from sklearn.model_selection import train_test_split
 from src.preprocessing.clean_text import clean_text
 from src.data.load_datasets import load_raw_data
-from src.config import PROCESSED_DATA_DIR, RAW_DATA_DIR, DEFAULT_BASE_MODEL_NAME
+from src.utils.logger import get_logger
+from src.config import (
+    PROCESSED_DATA_DIR, 
+    DEFAULT_BASE_MODEL_NAME, 
+    TOKENIZER_MAX_LENGTH, 
+    SEED
+)
 
-TOKENIZER_NAME = os.environ.get("TOKENIZER_NAME", DEFAULT_BASE_MODEL_NAME)
-MAX_LENGTH = 512
+logger = get_logger(__name__)
 
 
 def to_hf_dataset(df, tokenizer, with_labels=True):
@@ -22,7 +30,7 @@ def to_hf_dataset(df, tokenizer, with_labels=True):
     enc = tokenizer(
         texts,
         truncation=True,
-        max_length=MAX_LENGTH
+        max_length=TOKENIZER_MAX_LENGTH
     )
 
     data = {
@@ -40,48 +48,44 @@ def save_dataset(ds, name):
     out_dir = PROCESSED_DATA_DIR / name
     os.makedirs(out_dir, exist_ok=True)
     ds.save_to_disk(out_dir)
-    print(f"✔ Dataset guardado en {out_dir}")
+    logger.info(f"Dataset guardado en {out_dir}")
 
 
 def main():
-    print(f"Cargando tokenizer: {TOKENIZER_NAME}...")
-    tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME)
+    logger.info(f"Cargando tokenizer: {DEFAULT_BASE_MODEL_NAME}...")
+    tokenizer = AutoTokenizer.from_pretrained(DEFAULT_BASE_MODEL_NAME)
 
     # 1. Cargar Datos Crudos Unificados (Fake + True)
     df = load_raw_data()
-    print(f"Total registros cargados: {len(df)}")
-
-    
+    logger.info(f"Total registros cargados: {len(df)}")
 
     # 2. Limpieza
-    print("Limpiando textos...")
+    logger.info("Limpiando textos...")
     df["text"] = df["text"].map(clean_text)
     
     # 3. Deduplicación
     len_before = len(df)
     df = df.drop_duplicates(subset=["text"])
-    print(f"⬇ Eliminados {len_before - len(df)} duplicados exactos.")
+    logger.info(f"Eliminados {len_before - len(df)} duplicados exactos.")
 
     # 4. Split (80% Train, 10% Val, 10% Test)
     # Primero separamos Test (10%)
-    from sklearn.model_selection import train_test_split
-    
     # Train+Val (90%) / Test (10%)
-    train_val_df, test_df = train_test_split(df, test_size=0.1, random_state=42, stratify=df["label"])
+    train_val_df, test_df = train_test_split(df, test_size=0.1, random_state=SEED, stratify=df["label"])
     
-    # Train (89% de 90% ≈ 80% total) / Val (11% de 90% ≈ 10% total)
-    # 0.111 * 0.9 ≈ 0.10
-    train_df, val_df = train_test_split(train_val_df, test_size=0.1111, random_state=42, stratify=train_val_df["label"])
+    # Train (89% de 90% ~ 80% total) / Val (11% de 90% ~ 10% total)
+    # 0.111 * 0.9 ~ 0.10
+    train_df, val_df = train_test_split(train_val_df, test_size=0.1111, random_state=SEED, stratify=train_val_df["label"])
 
-    print(f"Distribución Final: Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
+    logger.info(f"Distribución Final: Train={len(train_df)}, Val={len(val_df)}, Test={len(test_df)}")
 
     # 6. Guardar Datasets
-    print("Guardando datasets procesados...")
+    logger.info("Guardando datasets procesados...")
     save_dataset(to_hf_dataset(train_df, tokenizer), "train")
     save_dataset(to_hf_dataset(val_df, tokenizer), "val")
     save_dataset(to_hf_dataset(test_df, tokenizer), "test")
 
-    print("✔ Proceso completado exitosamente.")
+    logger.info("Proceso completado exitosamente.")
 
 
 if __name__ == "__main__":

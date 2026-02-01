@@ -25,15 +25,14 @@ app = FastAPI(
 async def predict(req: PredictRequest, request: Request):
     logger.info(f"Request recibido: {req.type} - {req.content[:50]}...")
     try:
-        # run_inference ya maneja la lógica de negocio y logging interno
+        # run_inference gestiona la lógica de negocio y el registro interno
         result = run_inference(req.type, req.content)
 
         if "error" in result:
             logger.warning(f"Error en inferencia: {result}")
-            # Si hay error, FastAPI espera un código de error o devolver el dict que coincida con el schema
-            # Dado que PredictResponse tiene campos opcionales, podríamos devolverlo si machea,
-            # pero el schema puede requerir label/confidence.
-            # Si el error es fatal (no se pudo procesar), lanzamos 400.
+            # Si ocurre un error, FastAPI espera un código HTTP o una respuesta válida según el esquema.
+            # Aunque PredictResponse tiene campos opcionales, si faltan datos requeridos (label/confidence), fallará.
+            # Para errores fatales de procesamiento, lanzamos una excepción HTTP 400.
             raise HTTPException(status_code=400, detail=result)
 
         return result

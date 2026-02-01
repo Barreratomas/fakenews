@@ -4,7 +4,7 @@ import numpy as np
 import shap
 from lime.lime_text import LimeTextExplainer
 import torch
-from src.inference.model_utils import load_text_clf_pipeline, label_names_from_config
+from src.inference.predict import load_text_clf_pipeline, label_names_from_config
 
 
 def explain_with_lime(text: str, top_k: int = 10, model_dir: Optional[str] = None, clf=None, tokenizer=None, model=None) -> Dict:
@@ -84,12 +84,12 @@ def explain_with_shap(text: str, top_k: int = 10, model_dir: Optional[str] = Non
     data_tokens = sv.data[0]
     values = sv.values[0]
     if values.ndim == 2:
-        # select class with largest total impact
+        # Seleccionar la clase con mayor impacto total
         class_idx = int(np.argmax(np.sum(np.abs(values), axis=0)))
         token_imp = values[:, class_idx]
     else:
         token_imp = values
-    # align token impacts to words
+    # Alinear impactos de tokens a palabras
     token_imp = np.array(token_imp, dtype=float)
     top_indices = np.argsort(-np.abs(token_imp))[:top_k]
     top_words = [data_tokens[i] for i in top_indices]

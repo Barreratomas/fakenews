@@ -21,10 +21,17 @@ INPUT
 El flujo de trabajo se compone de los siguientes pasos:
 
 *   **Clasificación binaria (Fake / Real)**: Determinación de la veracidad del contenido basada en patrones aprendidos.
-*   **Modelo base**: Uso de arquitectura Transformer fine-tuned para la tarea específica.
+*   **Modelo base**: Uso de arquitectura Transformer Multilingüe (`mDeBERTa v3`) fine-tuned para la tarea.
 *   **Eficiencia**: Implementación de LoRA (Low-Rank Adaptation) para optimización de recursos.
 *   **RAG (Retrieval-Augmented Generation)**: Contraste de información con fuentes reales indexadas para validación contextual.
+*   **Resolución de Conflictos**: Sistema híbrido que combina el análisis de estilo (DeBERTa) con la verificación de hechos (RAG) para emitir un veredicto final robusto.
 *   **Explicabilidad**: Identificación y resaltado de palabras clave que influyeron en la predicción.
+
+## Historia del Desarrollo
+
+Si te interesa conocer el proceso técnico, las decisiones de arquitectura y los desafíos enfrentados durante la construcción de este sistema (desde modelos básicos hasta la solución híbrida final), consulta el documento detallado:
+
+📄 [**Leer Historia del Desarrollo (DESARROLLO.md)**](./DESARROLLO.md)
 
 ## API Backend
 
@@ -70,7 +77,7 @@ El proyecto utiliza un stack tecnológico moderno y modular:
 **NLP & ML**
 *   PyTorch
 *   Hugging Face Transformers
-*   DeBERTa v3 + LoRA (PEFT)
+*   mDeBERTa v3 (Multilingual) + LoRA (PEFT)
 
 **Backend**
 *   FastAPI

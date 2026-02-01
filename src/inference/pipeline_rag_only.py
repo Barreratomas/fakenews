@@ -9,8 +9,8 @@ logger = get_logger(__name__)
 def run_inference(input_type: str, content: str) -> Dict[str, Any]:
     extracted_title = None
     text = ""
-    
-    # 1️⃣ Obtener texto
+        
+    # Obtener texto
     if input_type == "url":
         try:
             logger.info(f"Extrayendo artículo desde URL: {content}")
@@ -39,11 +39,11 @@ def run_inference(input_type: str, content: str) -> Dict[str, Any]:
             "error": "Texto vacío"
         }
 
-    # 2️⃣ Clasificación fake / real
-    logger.info("⚠️ MODELO DESHABILITADO (Modo RAG-Only). Usando dummy result.")
+    # Clasificación fake / real
+    logger.info("MODELO DESHABILITADO (Modo RAG-Only). Usando dummy result.")
     clf_result = {"label": "RAG_ONLY", "confidence": 0.0}
 
-    # 3️⃣ RAG (Fact-Checking Asistido)
+    # RAG (Fact-Checking Asistido)
     try:
         logger.info("Ejecutando Fact-Checking (RAG)...")
         rag_result = rag_fact_check(text)
@@ -61,15 +61,11 @@ def run_inference(input_type: str, content: str) -> Dict[str, Any]:
     if not explanation_text:
         explanation_text = "No se pudo generar explicación."
 
-    # 4️⃣ Explicación del modelo (Keywords)
-    model_explanation = {}
-    # try:
-    #     logger.info("Generando explicación del modelo (Keywords)...")
-    #     model_explanation = generate_explanation(text, method="attention")
-    # except Exception as e:
-    #     logger.warning(f"No se pudo generar explicación del modelo: {e}")
+    # Explicación del modelo (Keywords)
+    model_explanation = {"top_words": ["(RAG ONLY)"], "top_word_scores": [1.0]}
 
-    # 5️⃣ Resolución de Conflictos (DeBERTa vs RAG)
+    # Resolución de Conflictos (DeBERTa vs RAG)
+    model_label = clf_result["label"].upper() # RAG_ONLY
     rag_analysis = rag_result.get("analysis", "").lower()
     
     # Heurística simple para detectar la postura del RAG basándonos en palabras clave del análisis
@@ -85,16 +81,7 @@ def run_inference(input_type: str, content: str) -> Dict[str, Any]:
     final_verdict = model_label
     verdict_message = "Decisión basada puramente en RAG (Modelo deshabilitado)"
     
-    # Lógica antigua de conflicto (comentada para modo RAG-Only)
-    # model_label = clf_result["label"].upper()  # FAKE | REAL
-    # if model_label == "REAL" and rag_verdict == "FAKE":
-    #     final_verdict = "WARNING_DISPUTED"
-    #     verdict_message = "⚠️ ALERTA: Texto parece real, pero los hechos lo contradicen (Desinformación Sofisticada)"
-    # elif model_label == "FAKE" and rag_verdict == "REAL":
-    #     final_verdict = "WARNING_SENSATIONALIST"
-    #     verdict_message = "⚠️ ALERTA: Hechos reales, pero estilo sensacionalista/clickbait"
-    # elif rag_verdict == "UNCERTAIN":
-    #      verdict_message = "RAG no pudo verificar (Falta información)"
+   
 
     return {
         "label": final_verdict, # Usamos el veredicto final como label principal

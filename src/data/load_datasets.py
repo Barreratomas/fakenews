@@ -1,5 +1,8 @@
 import os
 import pandas as pd
+from src.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", ".."))
@@ -16,7 +19,7 @@ def load_raw_data():
     if not os.path.exists(fake_path) or not os.path.exists(true_path):
         raise FileNotFoundError(f"Faltan archivos raw: {fake_path} o {true_path}")
 
-    print("Cargando Fake.csv y True.csv...")
+    logger.info("Cargando Fake.csv y True.csv...")
     df_fake = pd.read_csv(fake_path)
     df_true = pd.read_csv(true_path)
 

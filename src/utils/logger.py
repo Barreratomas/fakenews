@@ -1,6 +1,7 @@
 import logging
 import sys
 from typing import Optional
+from src.config import LOGS_DIR
 
 def get_logger(name: str, level: int = logging.INFO, log_file: Optional[str] = None) -> logging.Logger:
     """
@@ -16,7 +17,7 @@ def get_logger(name: str, level: int = logging.INFO, log_file: Optional[str] = N
     """
     logger = logging.getLogger(name)
     
-    # Si ya tiene handlers, no agregamos más para evitar duplicados
+    # Si ya tiene handlers, no agrega más para evitar duplicados
     if logger.hasHandlers():
         return logger
         
@@ -32,7 +33,12 @@ def get_logger(name: str, level: int = logging.INFO, log_file: Optional[str] = N
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     
-    # File Handler (opcional)
+    # File Handler 
+    # Si no se especifica archivo, usar el default del proyecto
+    if log_file is None:
+        LOGS_DIR.mkdir(parents=True, exist_ok=True)
+        log_file = str(LOGS_DIR / "app.log")
+
     if log_file:
         file_handler = logging.FileHandler(log_file, encoding='utf-8')
         file_handler.setFormatter(formatter)

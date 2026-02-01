@@ -2,8 +2,7 @@ import sys
 import os
 from pathlib import Path
 
-# Add project root to sys.path before local imports
-# This script is in src/ui/gradio_app.py -> root is ../../
+
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(project_root))
 
@@ -32,21 +31,21 @@ def predict_fn(input_option, text_input, url_input):
     content = url_input if input_option == "URL" else text_input
     input_type_key = "url" if input_option == "URL" else "text"
     
-    # 🔧 A. Validación explícita
+    #  Validación explícita
     if not content or not content.strip():
-        return ("<h3 style='color:red'>⚠️ Error: El contenido no puede estar vacío.</h3>", "", "", pd.DataFrame(), "")
+        return ("<h3 style='color:red'>Error: El contenido no puede estar vacío.</h3>", "", "", pd.DataFrame(), "")
     
     if input_option == "Texto" and len(content.strip()) < 50:
-        return ("<h3 style='color:orange'>⚠️ Advertencia: Texto demasiado corto (mínimo 50 caracteres).</h3>", "", "", pd.DataFrame(), "")
+        return ("<h3 style='color:orange'>Advertencia: Texto demasiado corto (mínimo 50 caracteres).</h3>", "", "", pd.DataFrame(), "")
         
     if input_option == "URL" and not content.lower().startswith("http"):
-        return ("<h3 style='color:red'>⚠️ Error: URL inválida (debe comenzar con http/https).</h3>", "", "", pd.DataFrame(), "")
+        return ("<h3 style='color:red'>Error: URL inválida (debe comenzar con http/https).</h3>", "", "", pd.DataFrame(), "")
 
     try:
         # Llamada al pipeline unificado
         result = run_inference(input_type_key, content)
         
-        # 🔧 B. Diferenciar errores del pipeline
+        #  Diferenciar errores del pipeline
         if "error" in result:
             stage = result.get("error_stage", "unknown")
             error_msg = result.get("error", "Error desconocido")
@@ -54,19 +53,19 @@ def predict_fn(input_option, text_input, url_input):
             # Mapeo de errores a mensajes amigables
             friendly_msg = f"Error en etapa: {stage}"
             if stage == "paywall":
-                friendly_msg = "🚫 <b>Paywall detectado:</b> No pudimos acceder al contenido completo de la noticia."
+                friendly_msg = "<b>Paywall detectado:</b> No pudimos acceder al contenido completo de la noticia."
             elif stage == "invalid_url":
-                friendly_msg = "❌ <b>URL Inválida:</b> Verifica que el enlace sea correcto."
+                friendly_msg = "<b>URL Inválida:</b> Verifica que el enlace sea correcto."
             elif stage == "connection_error":
-                friendly_msg = "🔌 <b>Error de conexión:</b> No pudimos conectar con el sitio web."
+                friendly_msg = "<b>Error de conexión:</b> No pudimos conectar con el sitio web."
             elif stage == "http_error":
-                friendly_msg = f"🔒 <b>Error del servidor:</b> El sitio devolvió un error ({error_msg})."
+                friendly_msg = f"<b>Error del servidor:</b> El sitio devolvió un error ({error_msg})."
             elif stage == "empty_article":
-                friendly_msg = "📄 <b>Artículo vacío:</b> No se encontró texto relevante en la página."
+                friendly_msg = "<b>Artículo vacío:</b> No se encontró texto relevante en la página."
             elif stage == "too_short":
-                friendly_msg = "📏 <b>Texto insuficiente:</b> El artículo es demasiado corto para ser analizado."
+                friendly_msg = "<b>Texto insuficiente:</b> El artículo es demasiado corto para ser analizado."
             else:
-                friendly_msg = f"⚠️ <b>Error de procesamiento ({stage}):</b> {error_msg}"
+                friendly_msg = f"<b>Error de procesamiento ({stage}):</b> {error_msg}"
 
             return (
                 f"<div style='padding: 20px; background-color: #fff5f5; border: 1px solid red; border-radius: 8px; color: red;'><h3>{friendly_msg}</h3></div>", 
@@ -95,19 +94,36 @@ def predict_fn(input_option, text_input, url_input):
     full_text = result.get("text", "")
     conflict = result.get("conflict_resolution", {})
     
-    # Formatting Label & Confidence (🔧 D. Barra de confianza + E. Veredicto de Conflicto)
-    color = "green" if label == "REAL" else "red"
-    bg_color = '#e6fffa' if label=='REAL' else '#fff5f5'
+    # Formatting Label & Confidence ( D. Barra de confianza + E. Veredicto de Conflicto)
     
+    # Definir colores y estilos según el veredicto
+    if label == "REAL":
+        color = "green"
+        bg_color = "#e6fffa" # Light Green
+    elif label == "FAKE":
+        color = "red"
+        bg_color = "#fff5f5" # Light Red
+    elif label == "POSSIBLE_FAKE":
+        color = "#dd6b20" # Orange
+        bg_color = "#fffaf0" # Light Orange
+    elif label.startswith("WARNING"):
+        color = "#d69e2e" # Yellow/Dark Gold
+        bg_color = "#fffff0" # Light Yellow
+    else:
+        color = "gray"
+        bg_color = "#f7fafc"
+
     # Bloque de Alerta de Conflicto
     conflict_html = ""
-    final_verdict = conflict.get("final_verdict", label)
-    if final_verdict.startswith("WARNING"):
-        msg = conflict.get("message", "Conflicto detectado")
-        conflict_html = f"""
-        <div style="margin-top: 15px; padding: 15px; background-color: #fffaf0; border-left: 5px solid #ed8936; border-radius: 4px;">
-            <h4 style="color: #c05621; margin: 0;">⚠️ Análisis Discrepante</h4>
-            <p style="margin: 5px 0 0 0; color: #2d3748;">{msg}</p>
+    # final_verdict ya es igual a label en la nueva lógica del pipeline, pero mantenemos compatibilidad
+    conflict_msg = conflict.get("message", "")
+    
+    # Si hay mensaje de conflicto o advertencia, lo mostramos
+    if conflict_msg and (label.startswith("WARNING") or label == "POSSIBLE_FAKE" or label == "AMBIGUOUS"):
+         conflict_html = f"""
+        <div style="margin-top: 15px; padding: 15px; background-color: #fffaf0; border-left: 5px solid {color}; border-radius: 4px;">
+            <h4 style="color: {color}; margin: 0;">Análisis Híbrido:</h4>
+            <p style="margin: 5px 0 0 0; color: #2d3748;">{conflict_msg}</p>
         </div>
         """
     
@@ -165,7 +181,7 @@ def predict_fn(input_option, text_input, url_input):
 with gr.Blocks(title="Detector de Fake News", theme=gr.themes.Soft()) as demo:
     gr.Markdown(
         """
-        # 🕵️‍♂️ Detector de Fake News IA
+        # Detector de Fake News IA
         Ingrese el texto de una noticia o una URL para analizar su veracidad.
         """
     )
@@ -191,19 +207,22 @@ with gr.Blocks(title="Detector de Fake News", theme=gr.themes.Soft()) as demo:
                 visible=False
             )
             
-            btn_analyze = gr.Button("🔍 Analizar Noticia", variant="primary", size="lg")
+            btn_analyze = gr.Button("Analizar Noticia", variant="primary", size="lg")
             
+    # Sección de Resultados (Output)
+    with gr.Row():
+        # Columna Izquierda: Veredicto
         with gr.Column(scale=1):
-            lbl_result = gr.HTML(label="Resultado")
+            label_output = gr.HTML(label="Veredicto")
+            extracted_output = gr.Textbox(label="Texto Analizado", lines=10, interactive=False)
             
-            with gr.Accordion("📄 Texto Analizado / Extraído", open=False):
-                txt_extracted = gr.Markdown()
-                
+        # Columna Derecha: Detalles
+        with gr.Column(scale=1):
             with gr.Tabs():
-                with gr.TabItem("🧠 Explicación Modelo"):
-                    txt_explanation = gr.Markdown(label="Palabras clave")
-                
-                with gr.TabItem("⚖️ Fact-Checking (RAG)"):
+                with gr.TabItem("Explicación Modelo"):
+                    expl_output = gr.Markdown()
+                    
+                with gr.TabItem("Fact-Checking (RAG)"):
                     txt_rag = gr.Markdown(label="Análisis LLM")
                     df_sources = gr.Dataframe(
                         headers=["Fuente", "Score", "Fragmento"],
@@ -223,7 +242,7 @@ with gr.Blocks(title="Detector de Fake News", theme=gr.themes.Soft()) as demo:
     btn_analyze.click(
         fn=predict_fn,
         inputs=[input_type, text_input, url_input],
-        outputs=[lbl_result, txt_extracted, txt_explanation, df_sources, txt_rag]
+        outputs=[label_output, extracted_output, expl_output, df_sources, txt_rag]
     )
 
 if __name__ == "__main__":
