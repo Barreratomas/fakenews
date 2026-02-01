@@ -121,20 +121,20 @@ def _label_map(idx: int) -> str:
 
 
 def model_predict(text: str, model_dir: Optional[str] = None) -> Dict:
-    logger.info("🔎 DEBUG: Entrando a model_predict...")
+    logger.info(" DEBUG: Entrando a model_predict...")
     clf, tokenizer, model = load_text_clf_pipeline(model_dir)
 
     # Depuración de Tokenización
-    logger.info("🔎 DEBUG: Tokenizando texto para inspección...")
+    logger.info(" DEBUG: Tokenizando texto para inspección...")
     tokens = tokenizer(text, truncation=True, max_length=TOKENIZER_MAX_LENGTH, return_tensors="pt")
     input_ids = tokens["input_ids"][0].tolist()
     decoded_tokens = tokenizer.convert_ids_to_tokens(input_ids)
-    logger.info(f"🔎 DEBUG: Primeros 20 tokens: {decoded_tokens[:20]}")
-    logger.info(f"🔎 DEBUG: Total tokens generados: {len(input_ids)}")
+    logger.info(f" DEBUG: Primeros 20 tokens: {decoded_tokens[:20]}")
+    logger.info(f" DEBUG: Total tokens generados: {len(input_ids)}")
 
-    logger.info("🔎 DEBUG: Ejecutando inferencia en pipeline...")
+    logger.info(" DEBUG: Ejecutando inferencia en pipeline...")
     raw_scores = clf(text)[0]
-    logger.info(f"🔎 DEBUG: Scores crudos del pipeline: {raw_scores}")
+    logger.info(f" DEBUG: Scores crudos del pipeline: {raw_scores}")
 
     scores = cast(List[Dict[str, float]], raw_scores)
     
@@ -220,11 +220,11 @@ def predict(input_data: Dict, method: str = "lime", model_dir: Optional[str] = N
     content = str(input_data.get("content", "")).strip()
     extracted_title = ""
 
-    logger.info(f"🔎 DEBUG: Iniciando predicción para contenido de tipo '{content_type}'")
+    logger.info(f" DEBUG: Iniciando predicción para contenido de tipo '{content_type}'")
     
     if content_type == "url":
         try:
-            logger.info(f"🔎 DEBUG: Extrayendo artículo desde URL: {content}")
+            logger.info(f" DEBUG: Extrayendo artículo desde URL: {content}")
             extracted = extract_article_from_url(content)
         except ArticleExtractionError as e:
             logger.error(f"DEBUG: Error de extracción ({e.stage}): {e}")
@@ -239,7 +239,7 @@ def predict(input_data: Dict, method: str = "lime", model_dir: Optional[str] = N
              logger.warning(f"DEBUG: Texto extraído muy corto: '{text}'")
     else:
         text = content
-        logger.info(f"🔎 DEBUG: Procesando texto directo. Longitud: {len(text)} caracteres")
+        logger.info(f" DEBUG: Procesando texto directo. Longitud: {len(text)} caracteres")
 
     # Validar texto procesable
     if not text or not text.strip():
