@@ -9,7 +9,7 @@ def main():
     
     print("Starting Fake News Detection System...")
     
-    # 1. Start Backend API
+    # Iniciar Backend API
     print("Starting Backend API (FastAPI)...")
     api_process = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"],
@@ -17,11 +17,11 @@ def main():
         env=os.environ.copy()
     )
     
-    # Wait for API to initialize (simple sleep, ideal would be health check)
+    #  Esperar a que la API se inicialice (solo para propósitos de ejemplo)
     print("Waiting for API to initialize...")
     time.sleep(10) 
     
-    # 2. Start Frontend UI
+    #  Iniciar Frontend UI
     print("Starting Frontend UI (Gradio)...")
     ui_process = subprocess.Popen(
         [sys.executable, "src/ui/gradio_app.py"],
