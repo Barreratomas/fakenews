@@ -1,4 +1,4 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Callable
 from src.extraction.article_extractor import extract_article_from_url, ArticleExtractionError
 from src.inference.predict import model_predict, generate_explanation
 from src.rag.rag_pipeline import rag_fact_check
@@ -27,11 +27,11 @@ def _resolve_conflict(model_label: str, rag_verdict: str) -> Tuple[str, str]:
         # Casos de Ambigüedad del Modelo
         ("AMBIGUOUS", "FAKE"): ("FAKE", "CONFIRMADO: El análisis de contenido y la verificación externa indican falsedad."),
         ("AMBIGUOUS", "REAL"): ("REAL", "VERIFICADO: La información ha sido corroborada por fuentes externas confiables."),
-        ("AMBIGUOUS", "UNCERTAIN"): ("POSSIBLE_FAKE", "NO VERIFICADO: El contenido presenta características sospechosas sin evidencia externa concluyente."),
+        ("AMBIGUOUS", "UNCERTAIN"): ("POSIBLE FALSO", "NO VERIFICADO: El contenido presenta características sospechosas sin evidencia externa concluyente."),
         
         # Casos de Contradicción Directa (High Confidence vs RAG)
-        ("REAL", "FAKE"): ("WARNING_DISPUTED", "DESINFORMACIÓN SOFISTICADA: El texto es coherente pero contiene hechos refutados por fuentes externas."),
-        ("FAKE", "REAL"): ("WARNING_SENSATIONALIST", "SENSACIONALISTA: Los hechos son correctos, pero presentados con un estilo engañoso o alarmista."),
+        ("REAL", "FAKE"): ("ADVERTENCIA CONTROVERTIDA", "DESINFORMACIÓN SOFISTICADA: El texto es coherente pero contiene hechos refutados por fuentes externas."),
+        ("FAKE", "REAL"): ("ADVERTENCIA SENSACIONALISTA", "SENSACIONALISTA: Los hechos son correctos, pero presentados con un estilo engañoso o alarmista."),
     }
     
     # Intentar resolución específica
@@ -48,7 +48,10 @@ def _resolve_conflict(model_label: str, rag_verdict: str) -> Tuple[str, str]:
          
     return final_verdict, message
 
-def run_inference(input_type: str, content: str) -> Dict[str, Any]:
+def run_inference(input_type: str, content: str, check_cancellation: Callable = None) -> Dict[str, Any]:
+    # Check cancellation at start
+    if check_cancellation: check_cancellation()
+
     extracted_title = None
     text = ""
     
@@ -90,6 +93,9 @@ def run_inference(input_type: str, content: str) -> Dict[str, Any]:
 
     # Clasificación fake / real
     try:
+        # Check cancellation before prediction
+        if check_cancellation: check_cancellation()
+
         logger.info("Ejecutando predicción del modelo...")
         clf_result = model_predict(text)
     # Manejar errores en predicción
@@ -102,6 +108,9 @@ def run_inference(input_type: str, content: str) -> Dict[str, Any]:
 
     # RAG (Fact-Checking Asistido)
     try:
+        # Check cancellation before RAG (expensive)
+        if check_cancellation: check_cancellation()
+
         logger.info("Ejecutando Fact-Checking (RAG)...")
         rag_result = rag_fact_check(text)
     # Manejar errores en RAG    

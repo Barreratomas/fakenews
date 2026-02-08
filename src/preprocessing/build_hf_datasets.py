@@ -1,11 +1,5 @@
 import os
-import sys
 from pathlib import Path
-
-# Add project root to sys.path if not present
-project_root = Path(__file__).resolve().parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.append(str(project_root))
 
 from datasets import Dataset
 from transformers import AutoTokenizer

@@ -4,3 +4,4 @@ from typing import Literal
 class PredictRequest(BaseModel):
     type: Literal["text", "url"]
     content: str
+    session_id: str | None = None

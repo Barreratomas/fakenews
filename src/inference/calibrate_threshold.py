@@ -3,14 +3,11 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
-# Agregar el directorio raíz al path
-ROOT_DIR = Path(__file__).resolve().parent.parent.parent
-sys.path.append(str(ROOT_DIR))
-
+# Imports
 from src.inference.predict import load_text_clf_pipeline
 
 def calibrate_threshold():
-    print("⚖️  CALIBRACIÓN DE UMBRAL (THRESHOLD) PARA DETECCIÓN DE FAKE NEWS")
+    print("CALIBRACIÓN DEL THRESHOLD PARA DETECCIÓN DE FAKE NEWS")
     print("=" * 100)
     
     examples = [
@@ -61,7 +58,7 @@ def calibrate_threshold():
         print(f"{text[:37]+'...':<40} | {prob_fake:.4f}     | {prob_real:.4f}     | {true_label:<15}")
 
     print("\n" + "=" * 100)
-    print("📊 ANÁLISIS DE UMBRALES")
+    print("ANÁLISIS DE UMBRALES")
     print("=" * 100)
     
     thresholds = [0.50, 0.60, 0.70, 0.80, 0.90, 0.95, 0.99]
@@ -84,7 +81,7 @@ def calibrate_threshold():
         acc = correct / len(results)
         print(f"Umbral > {t:.2f} | Accuracy: {acc:.2f} ({correct}/{len(results)}) | FP (Alarmismo): {fp} | FN (Fuga): {fn}")
         if fp == 0 and fn == 0:
-            print("   🌟 UMBRAL IDEAL ENCONTRADO")
+            print("UMBRAL IDEAL ENCONTRADO")
 
 if __name__ == "__main__":
     calibrate_threshold()

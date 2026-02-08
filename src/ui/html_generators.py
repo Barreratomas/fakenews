@@ -12,13 +12,13 @@ def get_label_styles(label):
             "bg_color": "#fff5f5",  # Light Red
             "border_color": "red"
         }
-    elif label == "POSSIBLE_FAKE":
+    elif label == "POSIBLE FALSO":
         return {
             "color": "#dd6b20",  # Orange
             "bg_color": "#fffaf0",  # Light Orange
             "border_color": "#dd6b20"
         }
-    elif label.startswith("WARNING"):
+    elif label.startswith("WARNING") or label.startswith("ADVERTENCIA"):
         return {
             "color": "#d69e2e",  # Yellow/Dark Gold
             "bg_color": "#fffff0",  # Light Yellow

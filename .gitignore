@@ -4,3 +4,8 @@ venv/
 */.venv/
 curso/
 logs/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+fake_news_detection.egg-info/

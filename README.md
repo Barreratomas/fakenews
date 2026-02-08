@@ -2,135 +2,94 @@
 
 ## Descripción del Proyecto
 
-Fake News Detection System es un sistema de detección de noticias falsas basado en modelos de NLP modernos. Permite analizar tanto texto plano como URLs de artículos periodísticos, extrayendo automáticamente el contenido antes de su evaluación.
+**Fake News Detection System** es una plataforma avanzada de verificación de noticias que combina modelos de lenguaje modernos (Transformers) con técnicas de recuperación de información (RAG). El sistema permite analizar tanto texto plano como URLs de artículos, proporcionando un veredicto de veracidad fundamentado en análisis estilístico y verificación de hechos.
 
-**Importante**: Cuando se ingresa una URL, el sistema extrae automáticamente el texto del artículo y lo analiza como texto plano.
+> **Nota**: Este proyecto está diseñado para ejecutarse en un entorno local de Python, aprovechando la potencia de librerías como PyTorch y Hugging Face Transformers.
 
-## Cómo Funciona el Sistema
+## Características Principales
 
-Arquitectura del sistema a alto nivel:
+*   **Análisis Dual**: Procesa texto directo o extrae contenido automáticamente desde URLs.
+*   **Modelo Híbrido**: Combina un clasificador neuronal (`mDeBERTa v3` con LoRA) para detectar patrones de escritura engañosos.
+*   **Verificación de Hechos (RAG)**: Busca evidencia en tiempo real en internet para contrastar la información.
+*   **Explicabilidad**: Resalta las palabras clave que influyeron en la decisión del modelo.
+*   **Interfaz Gráfica**: UI intuitiva basada en Gradio para interactuar con el sistema.
+*   **API REST**: Backend robusto en FastAPI para integraciones.
 
-```
-INPUT
- ├─ Texto ──────────────→ Clasificador Transformer → Predicción
- └─ URL → Scraper → Texto → Clasificador Transformer → Predicción
-                                     ↓
-                                RAG + LLM (Verificación)
-```
+## Instalación y Ejecución Local
 
-El flujo de trabajo se compone de los siguientes pasos:
+Sigue estos pasos para poner en marcha el sistema en tu máquina.
 
-*   **Clasificación binaria (Fake / Real)**: Determinación de la veracidad del contenido basada en patrones aprendidos.
-*   **Modelo base**: Uso de arquitectura Transformer Multilingüe (`mDeBERTa v3`) fine-tuned para la tarea.
-*   **Eficiencia**: Implementación de LoRA (Low-Rank Adaptation) para optimización de recursos.
-*   **RAG (Retrieval-Augmented Generation)**: Contraste de información con fuentes reales indexadas para validación contextual.
-*   **Resolución de Conflictos**: Sistema híbrido que combina el análisis de estilo (DeBERTa) con la verificación de hechos (RAG) para emitir un veredicto final robusto.
-*   **Explicabilidad**: Identificación y resaltado de palabras clave que influyeron en la predicción.
+### Prerrequisitos
+*   Python 3.10 o superior.
+*   Git.
 
-## Historia del Desarrollo
-
-Si te interesa conocer el proceso técnico, las decisiones de arquitectura y los desafíos enfrentados durante la construcción de este sistema (desde modelos básicos hasta la solución híbrida final), consulta el documento detallado:
-
-📄 [**Leer Historia del Desarrollo (DESARROLLO.md)**](./DESARROLLO.md)
-
-## API Backend
-
-El sistema expone un endpoint REST para integración. Es importante notar que la API y la interfaz de usuario comparten el mismo pipeline de inferencia unificado.
-
-**Endpoint**: `POST /predict`
-
-**Ejemplo de solicitud:**
-
-```json
-{
-  "type": "url",
-  "content": "https://news.site/article"
-}
+### 1. Clonar el Repositorio
+```bash
+git clone <url-del-repositorio>
+cd fake_news
 ```
 
-**Ejemplo de respuesta:**
+### 2. Configurar el Entorno Virtual
+Es recomendable usar un entorno virtual para aislar las dependencias:
 
-```json
-{
-  "label": "FAKE",
-  "confidence": 0.92,
-  "extracted_title": "Título extraído de la noticia...",
-  "explanation": "Palabras clave identificadas...",
-  "rag_analysis": "Análisis comparativo con fuentes confiables..."
-}
+```bash
+# Crear entorno virtual
+python -m venv venv
+
+# Activar entorno (Windows)
+.\venv\Scripts\activate
+
+# Activar entorno (Linux/Mac)
+source venv/bin/activate
 ```
 
-## Interfaz de Usuario (UI)
+### 3. Instalar Dependencias
+Instala todas las librerías necesarias listadas en `requirements.txt`:
 
-El proyecto incluye una interfaz gráfica desarrollada en Gradio que permite interactuar con el modelo de forma sencilla e intuitiva:
+```bash
+pip install -r requirements.txt
+```
 
-*   **Selector de entrada**: Permite alternar entre análisis de Texto y URL.
-*   **Vista previa**: Muestra el texto extraído automáticamente desde la URL para validación del usuario.
-*   **Resultado**: Visualización clara de la etiqueta (Fake/Real) y el nivel de confianza del modelo.
-*   **Explicación del modelo**: Detalles sobre las palabras que más influyeron en la decisión.
-*   **Análisis comparativo (RAG)**: Sección dedicada a mostrar fuentes similares y su consistencia con la noticia analizada.
+### 4. Ejecutar la Aplicación
+El proyecto incluye un script unificado que levanta tanto el Backend (API) como el Frontend (UI):
+
+```bash
+python run_app.py
+```
+
+Una vez iniciado, verás en la consola las direcciones de acceso:
+*   **Interfaz de Usuario**: `http://localhost:7860`
+*   **Documentación de la API**: `http://localhost:8000/docs`
+
+## Arquitectura del Sistema
+
+El flujo de información sigue este pipeline:
+
+1.  **Entrada**: URL o Texto del usuario.
+2.  **Extracción**: Si es URL, se descarga y limpia el contenido principal.
+3.  **Inferencia (Modelo NLP)**: `mDeBERTa` analiza el estilo y semántica del texto.
+4.  **Verificación (RAG)**: Se buscan noticias relacionadas en fuentes confiables y se comparan.
+5.  **Resolución**: Un sistema de reglas pondera el análisis estilístico vs. la evidencia encontrada.
+6.  **Salida**: Veredicto final (REAL/FAKE), confianza y explicación.
 
 ## Stack Tecnológico
 
-El proyecto utiliza un stack tecnológico moderno y modular:
-
 **NLP & ML**
-*   PyTorch
-*   Hugging Face Transformers
-*   mDeBERTa v3 (Multilingual) + LoRA (PEFT)
+*   **Modelo**: mDeBERTa v3 (Multilingual) + LoRA (PEFT).
+*   **Frameworks**: PyTorch, Hugging Face Transformers.
+*   **RAG**: FAISS, Sentence Transformers.
 
-**Backend**
-*   FastAPI
-*   Pydantic
+**Ingeniería de Software**
+*   **Backend**: FastAPI, Uvicorn.
+*   **Frontend**: Gradio.
+*   **Scraping**: newspaper3k, BeautifulSoup.
+*   **Validación**: Pydantic.
 
-**RAG (Fact-Checking)**
-*   FAISS
-*   Sentence Transformers
-*   FLAN-T5
+## Documentación de Desarrollo
 
-**Scraping**
-*   newspaper3k
-*   BeautifulSoup
-*   lxml
+Para conocer en profundidad las decisiones técnicas, desde el entrenamiento del modelo hasta la arquitectura del software, consulta:
 
-**UI & Deploy**
-*   Gradio
-*   Docker
+📄 [**Leer Historia del Desarrollo (DESARROLLO.md)**](./DESARROLLO.md)
 
-## Limitaciones del Sistema
-
-El sistema presenta las siguientes limitaciones conocidas:
-
-*   **Naturaleza probabilística**: El sistema no garantiza veracidad absoluta, sino una estimación probabilística basada en patrones lingüísticos y semánticos aprendidos.
-*   **Acceso a contenido**: Puede fallar en la extracción de artículos protegidos por paywalls estrictos o con estructuras HTML no estándar.
-*   **Alcance del entrenamiento**: El modelo fue entrenado con texto plano; no verifica la reputación de la fuente en tiempo real ni metadatos externos.
-*   **Dependencia del RAG**: La calidad del análisis comparativo depende directamente de la cobertura y calidad del índice de noticias reales utilizado.
-*   **Escalabilidad**: El diseño actual prioriza la demostración técnica y la arquitectura limpia, no estando optimizado para procesamiento masivo concurrente en producción.
-
-## Posibles Mejoras
-
-Para futuras iteraciones del proyecto se contempla la implementación de:
-
-*   Fine-tuning con datasets multilingües para ampliar el alcance global.
-*   Verificación cruzada integrando APIs externas de fact-checking en tiempo real.
-*   Módulos específicos para detección de clickbait y sensacionalismo.
-*   Soporte nativo multi-idioma.
-*   Despliegue optimizado con soporte GPU y procesamiento por lotes (batching).
-*   Monitoreo continuo de drift del modelo para mantenimiento a largo plazo.
-
-## Docker y Despliegue
-
-El proyecto está contenerizado para facilitar su ejecución en cualquier entorno. El contenedor expone una UI interactiva vía Gradio.
-
-**Construcción y ejecución:**
-
-```bash
-docker build -t fake-news-detector .
-docker run -p 7860:7860 fake-news-detector
-```
-
-La interfaz estará disponible en `http://localhost:7860`.
-
-## Notas Finales
-
-Este proyecto fue desarrollado con fines educativos y de demostración técnica, priorizando una arquitectura limpia, buenas prácticas de desarrollo y extensibilidad del código.
+## Licencia
+Este proyecto es de código abierto y se distribuye bajo la licencia MIT.

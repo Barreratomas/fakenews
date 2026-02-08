@@ -1,52 +1,73 @@
-# Historia del Desarrollo: Sistema de Detección de Fake News
+# Documentación de Desarrollo e Ingeniería
 
-Este documento narra el proceso técnico y las decisiones de diseño tomadas durante la construcción del sistema, desde los primeros prototipos hasta la arquitectura híbrida final.
+Este documento detalla el ciclo de vida completo del proyecto, dividido en dos fases fundamentales: la creación del "cerebro" (Ingeniería de IA) y la construcción del "cuerpo" (Ingeniería de Software).
 
-## 1. El Problema Inicial
-El objetivo era crear un sistema capaz de distinguir entre noticias verdaderas y falsas. Inicialmente, el desafío parecía ser un problema clásico de **clasificación de texto**.
+---
 
-### Enfoque Temprano (Baseline)
-- Se exploraron modelos simples (TF-IDF + Regresión Logística/SVM).
-- **Limitación**: Estos modelos dependían demasiado de palabras clave específicas y no entendían el contexto semántico profundo ni la intencionalidad del texto.
+# Parte 1: Ingeniería de Inteligencia Artificial
+*El proceso de investigación, datos y modelado para crear el núcleo predictivo.*
 
-## 2. La Transición a Transformers
-Para capturar matices lingüísticos, migramos a arquitecturas basadas en Transformers.
-- **Elección**: `microsoft/deberta-v3-base`.
-- **Por qué DeBERTa**: Supera a BERT y RoBERTa gracias a su mecanismo de atención desenredada (disentangled attention), crucial para entender contextos complejos en artículos largos.
+## 1. Definición del Problema y Datos
+El primer desafío fue definir qué constituye una "Fake News" desde la perspectiva de un modelo.
+*   **Dataset**: Se utilizó el dataset "Fake and Real News Dataset" (ISOT), que contiene miles de artículos etiquetados.
+*   **Limpieza**: Se implementaron scripts de preprocesamiento para eliminar ruido (URLs, caracteres especiales, firmas de autores) que pudieran sesgar al modelo hacia patrones irrelevantes ("shortcuts").
+*   **Desafío Multilingüe**: Aunque el dataset base es en inglés, el objetivo era soportar español. Se optó por modelos multilingües desde el inicio.
 
-## 3. El Desafío del Idioma (Español)
-El sistema debía funcionar en español. El modelo original de DeBERTa es principalmente inglés.
-- **Solución**: Migración a `microsoft/mdeberta-v3-base` (Multilingual DeBERTa).
-- **Impacto**: Mejora drástica en la detección de sintaxis y modismos propios de noticias en español.
+## 2. Selección de Arquitectura (Model Selection)
+Se evaluaron varias arquitecturas de Transformers:
+*   **BERT/RoBERTa**: Descartados por limitaciones en el manejo de contextos largos y dependencias complejas.
+*   **Elección Final: mDeBERTa v3 (Microsoft Decoding-enhanced BERT with disentangled attention)**.
+    *   *Por qué*: Su mecanismo de atención desenredada permite entender mejor la semántica profunda y la intencionalidad del texto, crucial para detectar desinformación sutil. Al ser la versión `m` (multilingual), ofrece soporte nativo para español e inglés.
 
-## 4. Optimización de Recursos (LoRA)
-El entrenamiento completo (Full Fine-Tuning) de un modelo Transformer es costoso en memoria GPU.
-- **Implementación**: PEFT (Parameter-Efficient Fine-Tuning) con **LoRA (Low-Rank Adaptation)**.
-- **Resultado**: Entrenamos solo el 0.6% de los parámetros totales, logrando un rendimiento comparable al entrenamiento completo pero consumiendo mucha menos memoria VRAM y permitiendo iteraciones rápidas.
+## 3. Entrenamiento Eficiente (Fine-Tuning con LoRA)
+El entrenamiento completo de un modelo de 200M+ parámetros es costoso. Adoptamos **LoRA (Low-Rank Adaptation)**:
+*   **Técnica**: En lugar de reentrenar todos los pesos, se inyectan matrices de bajo rango en las capas de atención.
+*   **Resultado**: Entrenamos solo el **0.6%** de los parámetros totales.
+*   **Beneficio**: El modelo resultante pesa lo mismo que el original pero con "adaptadores" ligeros (~50MB), facilitando su almacenamiento y carga.
 
-## 5. El Problema de la "Alucinación" y Hechos Obsoletos
-Un modelo de lenguaje solo "sabe" lo que aprendió durante su entrenamiento. Si aparece una noticia falsa sobre un evento de ayer, el modelo no tiene forma de verificarlo y puede equivocarse confiando solo en el estilo de escritura.
-- **Solución**: Implementación de **RAG (Retrieval-Augmented Generation)**.
-- **Cómo funciona**:
-    1. El sistema busca en internet (Google Search) artículos recientes sobre el tema.
-    2. Recupera el contenido relevante.
-    3. Un LLM (Google FLAN-T5) compara la noticia del usuario con los hechos encontrados en internet.
-    4. El sistema emite un veredicto basado en evidencia, no solo en estilo.
+## 4. Implementación de RAG (Retrieval-Augmented Generation)
+Detectamos que el modelo "alucinaba" o fallaba con noticias muy recientes no presentes en su entrenamiento.
+*   **Solución**: Un módulo RAG que actúa como verificador de hechos.
+*   **Funcionamiento**:
+    1.  Toma el titular/texto de la noticia sospechosa.
+    2.  Realiza una búsqueda en tiempo real en internet.
+    3.  Recupera fragmentos de fuentes confiables.
+    4.  Compara semánticamente la noticia de entrada con la evidencia encontrada.
 
-## 6. Arquitectura Híbrida y Resolución de Conflictos
-¿Qué pasa si el modelo dice "FAKE" (por el estilo de escritura) pero el RAG dice "REAL" (porque los hechos son ciertos)?
-- **Estrategia**: Implementamos una **Matriz de Resolución de Conflictos**.
-- **Lógica**:
-    - Si hay evidencia externa fuerte (RAG), esta tiene prioridad sobre el estilo.
-    - Si el RAG no encuentra información (incertidumbre), confiamos en la predicción estilística del modelo DeBERTa.
-    - Se generaron etiquetas profesionales como "DESINFORMACIÓN SOFISTICADA" (estilo real, hechos falsos) o "SENSACIONALISTA" (hechos reales, estilo engañoso).
+---
 
-## 7. Profesionalización y Despliegue
-La etapa final se centró en la robustez y usabilidad:
-- **API**: Backend rápido con FastAPI.
-- **UI**: Interfaz gráfica con Gradio para demostraciones sencillas.
-- **Docker**: Contenerización completa para garantizar que el sistema corra en cualquier máquina sin problemas de dependencias ("funciona en mi máquina").
-- **Clean Code**: Refactorización, logs centralizados en español, y eliminación de deuda técnica.
+# Parte 2: Ingeniería de Software
+*La construcción de la plataforma robusta que hace utilizable a la IA.*
 
-## Conclusión Técnica
-El sistema final no es solo un clasificador; es un **verificador de hechos asistido por IA**. Combina la intuición lingüística de los Transformers modernos con la capacidad de verificación de hechos en tiempo real del RAG, ofreciendo una solución mucho más robusta que los enfoques tradicionales.
+## 1. Arquitectura del Sistema
+Se diseñó una arquitectura modular desacoplada para facilitar el mantenimiento:
+
+```
+[ Frontend (UI) ] <---> [ API Gateway (FastAPI) ] <---> [ Pipeline de Inferencia ]
+                                                                 |
+                                                     [ Modelo NLP ] + [ Módulo RAG ]
+```
+
+## 2. Desarrollo del Backend (FastAPI)
+El núcleo del sistema es una API RESTful de alto rendimiento.
+*   **Validación Estricta**: Uso de **Pydantic** para garantizar que los datos de entrada (URLs, textos) cumplan con los formatos esperados antes de llegar al modelo.
+*   **Gestión de Errores**: Sistema centralizado de manejo de excepciones para devolver mensajes claros al cliente (ej. "Error al descargar la URL", "Texto demasiado corto").
+*   **Asincronía**: Endpoints `async` para no bloquear el servidor durante operaciones de I/O (como el scraping de noticias).
+
+## 3. Pipeline de Inferencia Unificado
+Se creó una clase orquestadora (`Pipeline`) que encapsula toda la lógica compleja:
+*   Coordina la limpieza del texto.
+*   Invoca al modelo DeBERTa.
+*   Activa el RAG si es necesario.
+*   Ejecuta la **Matriz de Resolución de Conflictos**: Un sistema de reglas que decide el veredicto final cuando el modelo y el RAG discrepan (ej. el modelo dice "Real" por el estilo, pero el RAG encuentra pruebas de que es falso).
+
+## 4. Interfaz de Usuario (Gradio)
+Para democratizar el acceso al modelo, se desarrolló una UI interactiva:
+*   **Experiencia de Usuario (UX)**: Diseño limpio que oculta la complejidad técnica.
+*   **Feedback Visual**: Uso de colores semánticos (Rojo/Verde/Amarillo) y barras de progreso para indicar el estado del análisis.
+*   **WebSockets**: Comunicación en tiempo real para mostrar logs y estados internos del proceso mientras el usuario espera.
+
+## 5. Calidad y Testing
+*   **Unit Tests**: Batería de pruebas para asegurar que cada componente (limpiador de texto, scraper, modelo) funcione aisladamente.
+*   **Integration Tests**: Pruebas del flujo completo API -> Modelo -> Respuesta.
+*   **Logging**: Sistema de logs rotativos para monitorear el comportamiento del sistema en producción sin saturar el disco.

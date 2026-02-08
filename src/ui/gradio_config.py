@@ -1,9 +1,6 @@
 import gradio as gr
 
-def create_gradio_interface(predict_fn):
-    """Crea y configura la interfaz de Gradio con el layout simplificado y responsive."""
-    
-    css = """
+CSS = """
     .gradio-container {
         max-width: 100% !important;
         padding: 20px !important;
@@ -85,9 +82,18 @@ def create_gradio_interface(predict_fn):
             font-size: 14px;
         }
     }
+
+    /* Ocultar footer de Gradio */
+    footer {
+        display: none !important;
+        visibility: hidden !important;
+    }
     """
+
+def create_gradio_interface(predict_fn):
+    """Crea y configura la interfaz de Gradio con el layout simplificado y responsive."""
     
-    with gr.Blocks(title="Detector de Fake News", css=css) as demo:
+    with gr.Blocks(title="Detector de Fake News") as demo:
         gr.Markdown(
             """
             # Detector de Fake News IA
@@ -117,6 +123,9 @@ def create_gradio_interface(predict_fn):
                     visible=False
                 )
                 
+                # Componente oculto para el Session ID
+                session_id_box = gr.Textbox(visible=False)
+
                 btn_analyze = gr.Button("Analizar Noticia", variant="primary", size="lg")
                 
                 # Contenedor del radar (inicialmente oculto)
@@ -151,7 +160,7 @@ def create_gradio_interface(predict_fn):
         input_type.change(toggle_inputs, input_type, [text_input, url_input], show_progress=False)
         
         # Función wrapper que maneja el radar
-        def analyze_with_radar(input_option, text_input, url_input):
+        def analyze_with_radar(input_option, text_input, url_input, session_id):
             # 1) Mostrar radar: devolvemos el HTML visible
             yield ("", "", """<div class="radar-container">
                 <div class="radar-circle">
@@ -161,7 +170,7 @@ def create_gradio_interface(predict_fn):
             </div>""")
             
             # 2) Ejecutar el análisis
-            label_result, extracted_result = predict_fn(input_option, text_input, url_input)
+            label_result, extracted_result = predict_fn(input_option, text_input, url_input, session_id)
             
             # 3) Ocultar radar: devolvemos los resultados y cadena vacía para el radar
             yield (label_result, extracted_result, "")
@@ -169,10 +178,25 @@ def create_gradio_interface(predict_fn):
         # Evento de análisis - Sin animación de progreso
         btn_analyze.click(
             fn=analyze_with_radar,
-            inputs=[input_type, text_input, url_input],
+            inputs=[input_type, text_input, url_input, session_id_box],
             outputs=[label_output, extracted_output, radar_container],
             show_progress=False,
             queue=True
+        )
+        
+        # Cargar Session ID al inicio
+        demo.load(
+            fn=None,
+            inputs=None,
+            outputs=session_id_box,
+            js="""() => {
+                let sessionId = sessionStorage.getItem("custom_session_id");
+                if (!sessionId) {
+                    sessionId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+                    sessionStorage.setItem("custom_session_id", sessionId);
+                }
+                return sessionId;
+            }"""
         )
         
         return demo

@@ -1,10 +1,4 @@
-import os
 import sys
-
-# Añadir el directorio raíz al PYTHONPATH
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.dirname(os.path.dirname(current_dir))
-sys.path.append(src_dir)
 
 import argparse
 import json
