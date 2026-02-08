@@ -1,5 +1,5 @@
 from typing import Dict
-from newspaper import Article
+from newspaper import Article, Config
 import validators
 import requests
 from urllib.parse import urlparse, unquote
@@ -9,6 +9,22 @@ class ArticleExtractionError(Exception):
     def __init__(self, stage: str, message: str):
         super().__init__(message)
         self.stage = stage
+
+
+# Headers que imitan un navegador real para evitar bloqueos (403/307)
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
+}
 
 
 def extract_text_from_fragment(url: str) -> str:
@@ -83,22 +99,37 @@ def extract_article_from_url(
 
     # Verificar que el sitio responde
     try:
-        r = requests.get(url, timeout=timeout, headers={
-            "User-Agent": "Mozilla/5.0"
-        })
+        r = requests.get(url, timeout=timeout, headers=BROWSER_HEADERS)
         if r.status_code >= 400:
             raise ArticleExtractionError(
                 "http_error",
                 f"HTTP status {r.status_code}"
             )
+        
+        # Detectar protección anti-bot / redirección JS (ej. Sucuri, Cloudflare)
+        if "Javascript is required" in r.text or "You are being redirected" in r.text:
+            raise ArticleExtractionError(
+                "antibot", 
+                "El sitio requiere JavaScript o tiene protección anti-bot compleja."
+            )
+            
     except requests.RequestException as e:
         raise ArticleExtractionError("connection_error", str(e))
 
     # Extracción con newspaper
-    article = Article(url, language=language)
+    # Configurar newspaper para usar el mismo User-Agent y headers
+    config = Config()
+    config.browser_user_agent = BROWSER_HEADERS["User-Agent"]
+    config.headers = BROWSER_HEADERS
+    config.request_timeout = timeout
+    
+    article = Article(url, language=language, config=config)
 
     try:
         # Usamos el HTML ya descargado para evitar doble request y errores 403
+        # Sin embargo, si requests siguió redirects (e.g. 307), r.text tiene el contenido final.
+        # A veces newspaper prefiere descargar por su cuenta si el input_html es complejo,
+        # pero input_html es más seguro si ya pasamos la barrera con requests.
         article.download(input_html=r.text)
     except Exception as e:
         raise ArticleExtractionError("download", str(e))

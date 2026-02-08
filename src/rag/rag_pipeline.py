@@ -19,7 +19,11 @@ from src.config import (
     RAG_TOP_K,
     RAG_GEN_PARAMS,
     RAG_PROMPT_TEMPLATE,
-    TOKENIZER_MAX_LENGTH
+    TOKENIZER_MAX_LENGTH,
+    RAG_CONTEXT_MAX_LENGTH,
+    RAG_CLAIM_MAX_LENGTH,
+    RAG_VERDICT_REAL_KEYWORDS,
+    RAG_VERDICT_FAKE_KEYWORDS
 )
 from src.utils.logger import get_logger
 
@@ -210,7 +214,10 @@ class FactChecker:
         3. Si hay contexto, usa LLM para verificar.
         """
         # 1. Retrieval
-        retrieved = self.rag.query(claim, top_k=RAG_TOP_K)
+        # Usamos una versión truncada y limpia del claim para la búsqueda web
+        # DuckDuckGo funciona mejor con queries cortas (<200 chars)
+        search_query = claim[:RAG_CLAIM_MAX_LENGTH].replace("\n", " ").strip()
+        retrieved = self.rag.query(search_query, top_k=RAG_TOP_K)
         if not retrieved:
             return {
                 "analysis": "No se encontró información relevante en internet.",
@@ -220,28 +227,37 @@ class FactChecker:
             
         # 2. Context building
         # Aumentamos el límite de caracteres para el contexto ya que los snippets web pueden ser densos
-        context_texts = [r["text"][:500] for r in retrieved] 
+        context_texts = [r["text"][:RAG_CONTEXT_MAX_LENGTH] for r in retrieved] 
         context_block = "\n".join(f"- {t}" for t in context_texts)
         
         # 3. LLM Generation
         self._ensure_llm()
         assert self.llm_pipeline is not None
         
-        prompt = RAG_PROMPT_TEMPLATE.format(context=context_block, claim=claim[:800])
+        # Truncamos el claim para evitar overflow de tokens en FLAN-T5 (512 max)
+        prompt = RAG_PROMPT_TEMPLATE.format(context=context_block, claim=claim[:RAG_CLAIM_MAX_LENGTH])
         
         # Parámetros para reducir repetición
         out = self.llm_pipeline(prompt, **RAG_GEN_PARAMS)
         analysis = out[0]["generated_text"]
         
         # Parsear veredicto explícito basado en el prompt
-        # El prompt instruye devolver: CONTRADICTED, SUPPORTED, o NOT ENOUGH INFO
         analysis_lower = analysis.lower()
-        if "contradicted" in analysis_lower:
-            verdict = "FAKE"
-        elif "supported" in analysis_lower:
-            verdict = "REAL"
+        
+        # Verificar keywords
+        is_real = any(k in analysis_lower for k in RAG_VERDICT_REAL_KEYWORDS)
+        is_fake = any(k in analysis_lower for k in RAG_VERDICT_FAKE_KEYWORDS)
+        
+        # Prioridad: si dice "yes" o "supported", es REAL. Si dice "no" o "contradicted", es FAKE.
+        # Cuidado con falsos positivos tipo "not supported" (contiene "supported").
+        # Pero con "yes"/"no" es más limpio.
+        
+        if "yes" in analysis_lower.split() or "supported" in analysis_lower:
+             verdict = "REAL"
+        elif "no" in analysis_lower.split() or "contradicted" in analysis_lower:
+             verdict = "FAKE"
         else:
-            verdict = "UNCERTAIN"
+             verdict = "UNCERTAIN"
         
         return {
             "analysis": analysis,

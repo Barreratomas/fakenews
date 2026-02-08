@@ -75,33 +75,29 @@ RAG_SIMILARITY_THRESHOLD = 0.4
 RAG_SOURCE = "web"
 
 # Keywords para detectar veredicto de RAG
-RAG_VERDICT_FAKE_KEYWORDS = ["contradicted", "false", "incorrect", "unsupported", "fake", "hoax"]
-RAG_VERDICT_REAL_KEYWORDS = ["supported", "true", "correct", "confirmed", "accurate"]
+RAG_VERDICT_FAKE_KEYWORDS = ["no", "contradicted", "false", "incorrect", "unsupported", "fake", "hoax"]
+RAG_VERDICT_REAL_KEYWORDS = ["yes", "supported", "true", "correct", "confirmed", "accurate"]
 
 # Parámetros de generación LLM
 RAG_GEN_PARAMS = {
-    "max_length": 200,
+    "max_length": 50,  # Reducido de 200, respuesta corta esperada
     "do_sample": False,
-    "num_beams": 4,
+    "num_beams": 2,    # Reducido de 4 para velocidad
     "no_repeat_ngram_size": 3,
     "repetition_penalty": 1.2
 }
 
 # Límites de texto para RAG
-RAG_CONTEXT_MAX_LENGTH = 500
-RAG_CLAIM_MAX_LENGTH = 800
+RAG_CONTEXT_MAX_LENGTH = 200  # Reducido drásticamente para ajustar a 512 tokens
+RAG_CLAIM_MAX_LENGTH = 200
 RAG_EMBEDDING_BATCH_SIZE = 64
 RAG_INDEX_MIN_TEXT_LEN = 50
 
-# Prompt Template
+# Prompt Template Minimalista
 RAG_PROMPT_TEMPLATE = (
-    "Context:\n{context}\n\n"
+    "Context: {context}\n\n"
     "Claim: {claim}\n\n"
-    "Task: Compare the Claim with the Context. Does the Context confirm the SPECIFIC events and reasons described in the Claim?\n"
-    "- If the Context describes the SAME event but with DIFFERENT reasons or details (e.g. claim says 'mind control', context says 'protests'), answer 'CONTRADICTED'.\n"
-    "- If the Context confirms the main points, answer 'SUPPORTED'.\n"
-    "- If the Context is unrelated, answer 'NOT ENOUGH INFO'.\n\n"
-    "Answer:"
+    "Based on the Context, is the Claim true? Answer 'yes' or 'no'."
 )
 
 # ==========================================

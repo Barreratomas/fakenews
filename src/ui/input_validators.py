@@ -27,12 +27,19 @@ def get_error_message(stage, error_msg):
         friendly_msg = f"<b>Error del servidor:</b> El sitio devolvió un error ({error_msg})."
     elif stage == "empty_article":
         friendly_msg = "<b>Artículo vacío:</b> No se encontró texto relevante en la página."
+    elif stage == "antibot":
+        friendly_msg = "<b>Protección Anti-Bot:</b> El sitio bloquea el acceso automático."
     elif stage == "too_short":
         friendly_msg = "<b>Texto insuficiente:</b> El artículo es demasiado corto para ser analizado."
     else:
         friendly_msg = f"<b>Error de procesamiento ({stage}):</b> {error_msg}"
     
-    return f"<div style='padding: 20px; background-color: #fff5f5; border: 1px solid red; border-radius: 8px; color: red;'><h3>{friendly_msg}</h3></div>"
+    return f"""
+    <div style='padding: 20px; background-color: #fff5f5; border: 2px solid #fc8181; border-radius: 8px;'>
+        <h3 style='color: #c53030; margin-top: 0; margin-bottom: 10px;'>{friendly_msg}</h3>
+        <p style='color: #742a2a; margin: 0; font-size: 0.9em;'>Detalle técnico: {error_msg}</p>
+    </div>
+    """
 
 def handle_pipeline_error(result):
     """Procesa errores del pipeline y retorna la respuesta adecuada."""
